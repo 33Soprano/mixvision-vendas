@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MixVision | Dashboard de Vendas</title>
+
+    <!-- Firebase SDK Moderno -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-analytics.js";
+
+        // SUA CONFIGURAÇÃO DO FIREBASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyBLsmYJ87CACLUPltpznb94cvvAR4zs5dI",
+            authDomain: "banco-de-dados-mixvendas.firebaseapp.com",
+            projectId: "banco-de-dados-mixvendas",
+            storageBucket: "banco-de-dados-mixvendas.firebasestorage.app",
+            messagingSenderId: "510513816274",
+            appId: "1:510513816274:web:f5fb07db566e080aad830b",
+            measurementId: "G-XGWFJK55DL"
+        };
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const analytics = getAnalytics(app);
+
+        // Disponibilizar globalmente
+        window.firebaseApp = app;
+        window.firebaseDb = db;
+
+        console.log("✅ Firebase configurado!");
+    </script>
+
+    <!-- SheetJS -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Fontes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        /* Telas */
+        .screen {
+            display: none;
+            min-height: 100vh;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        /* Login Container */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #94a3b8;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Admin */
+        .admin-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .user-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .token-display {
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Responsividade Admin */
+        @media (max-width: 768px) {
+            .admin-container {
+                padding: 10px;
+            }
+
+            .user-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-logo">
+                    <h1><i class="fas fa-chart-network"></i> MixVision</h1>
+                    <p>Dashboard de Oportunidades Comerciais</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Token de Acesso</label>
+                    <input type="password" id="token-input" class="form-control"
+                        placeholder="Digite seu token de acesso..." autocomplete="off">
+                </div>
+
+                <button class="btn-login" onclick="mixLogin()" id="login-btn">
+                    <i class="fas fa-sign-in-alt"></i> Acessar Dashboard
+                </button>
+
+                <div class="error-msg" id="error-msg">
+                    <i class="fas fa-exclamation-circle"></i> Token inválido ou expirado!
+                </div>
+
+                <div class="admin-note">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Token do Administrador:</strong> admin-123
+                </div>
+
+                <div class="footer-note">
+                    <i class="fas fa-shield-alt"></i> Sistema Online | v3.0
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DO ADMIN -->
+    <div id="admin-screen" class="screen">
+        <div class="app-header">
+            <div>
+                <h1><i class="fas fa-user-shield"></i> Painel Administrativo</h1>
+                <p class="subtitle">Gerenciamento de Vendedores</p>
+            </div>
+            <button class="btn-primary btn-logout" onclick="mixLogout()">
+                <i class="fas fa-sign-out-alt"></i> Sair
+            </button>
+        </div>
+
+        <div class="admin-container">
+            <div class="card">
+                <h3><i class="fas fa-user-plus"></i> Cadastrar Novo Vendedor</h3>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <input type="text" id="new-user-name" class="form-control" placeholder="Nome do Vendedor"
+                        style="flex: 1;">
+                    <button class="btn-primary" onclick="mixCreateUser()" id="create-user-btn">
+                        <i class="fas fa-plus"></i> Gerar Token
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><i class="fas fa-users"></i> Vendedores Cadastrados</h3>
+                <div id="users-container" class="loading">
+                    <div class="spinner"></div>
+                    <p>Carregando vendedores...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TELA DO DASHBOARD (será carregada dinamicamente) -->
+    <div id="dashboard-screen" class="screen">
+        <div id="dashboard-content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Carregando dashboard...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay Global -->
+    <div id="global-loading" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p class="text-secondary mt-4" id="loading-message">Processando...</p>
+    </div>
+
+    <!-- Script principal -->
+    <script src="script.js"></script>
+
+    <script>
+        // Funções auxiliares globais
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const screen = document.getElementById(screenId);
+            if (screen) screen.classList.add('active');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-msg');
+            if (errorDiv) {
+                errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function hideError() {
+            const errorDiv = document.getElementById('error-msg');
+            if (errorDiv) errorDiv.style.display = 'none';
+        }
+
+        // Permitir Enter no login
+        document.getElementById('token-input')?.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') mixLogin();
+        });
+
+        // Auto-focus no input do token
+        document.addEventListener('DOMContentLoaded', function () {
+            const tokenInput = document.getElementById('token-input');
+            if (tokenInput) tokenInput.focus();
+        });
+    </script>
+</body>
+
+</html>
