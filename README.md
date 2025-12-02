@@ -6,13 +6,6 @@
 
 **Sistema web para análise inteligente de mix de produtos e identificação de oportunidades de vendas.**
 
-## 🌐 Demo Online
-🔗 **Acesse agora:** [https://33soprano.github.io/mixvision-vendas](https://33soprano.github.io/mixvision-vendas)
-
-**Credenciais de teste:**
-- **Admin**: Token `admin-123`
-- **Vendedores**: Tokens gerados no painel administrativo
-
 ## 🎯 Funcionalidades Principais
 
 ### 📈 **Dashboard Inteligente**
