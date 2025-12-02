@@ -385,7 +385,7 @@ function loadDashboardScreen() {
     const dashboardContent = document.getElementById('dashboard-content');
     const userName = currentMixUser?.name || localStorage.getItem('userName') || 'Vendedor';
 
-    // HTML do dashboard
+    // HTML do dashboard - VERSÃO CORRIGIDA (APENAS 2 ABAS)
     dashboardContent.innerHTML = `
         <div class="app-container">
             <header class="app-header">
@@ -476,15 +476,13 @@ function loadDashboardScreen() {
                     </div>
                 </div>
 
+                <!-- ABAS CORRETAS (APENAS 2) -->
                 <div class="tabs-container">
                     <button id="tab-opportunities" class="tab-button active">
                         <i class="fas fa-bullseye mr-2"></i>Oportunidades
                     </button>
                     <button id="tab-sold" class="tab-button">
                         <i class="fas fa-check-circle mr-2"></i>Já Vendidos
-                    </button>
-                    <button id="tab-analytics" class="tab-button">
-                        <i class="fas fa-chart-pie mr-2"></i>Analíticos
                     </button>
                 </div>
 
@@ -509,13 +507,6 @@ function loadDashboardScreen() {
                     </div>
                     <h4 class="text-xl font-semibold mb-2">Nenhum dado para exibir</h4>
                     <p class="text-secondary">Selecione um consultor, rota e cliente para visualizar as oportunidades</p>
-                </div>
-            </section>
-
-            <section id="analytics-section" class="card hidden">
-                <h3><i class="fas fa-chart-line"></i> Análises Detalhadas</h3>
-                <div id="analytics-content" class="text-center py-12">
-                    <p class="text-secondary">Carregue uma planilha para visualizar análises detalhadas</p>
                 </div>
             </section>
 
@@ -1160,20 +1151,6 @@ function initializeApp() {
     if (btnClearLog) {
         btnClearLog.addEventListener('click', () => {
             if (debugLog) debugLog.textContent = '';
-        });
-    }
-
-    // Tab Analytics
-    const tabAnalytics = document.getElementById('tab-analytics');
-    const analyticsSection = document.getElementById('analytics-section');
-    if (tabAnalytics && analyticsSection) {
-        tabAnalytics.addEventListener('click', () => {
-            currentTab = 'analytics';
-            tabAnalytics.classList.add('active');
-            tabOpportunities.classList.remove('active');
-            tabSold.classList.remove('active');
-            if (filtersSection) filtersSection.classList.add('hidden');
-            if (analyticsSection) analyticsSection.classList.remove('hidden');
         });
     }
 
