@@ -6,13 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MixVision | Dashboard de Vendas</title>
 
-    <!-- Firebase SDK Moderno -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-analytics.js";
 
-        // SUA CONFIGURAÇÃO DO FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyBLsmYJ87CACLUPltpznb94cvvAR4zs5dI",
             authDomain: "banco-de-dados-mixvendas.firebaseapp.com",
@@ -23,12 +22,10 @@
             measurementId: "G-XGWFJK55DL"
         };
 
-        // Inicializar Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const analytics = getAnalytics(app);
 
-        // Disponibilizar globalmente
         window.firebaseApp = app;
         window.firebaseDb = db;
 
@@ -51,7 +48,7 @@
     <link rel="stylesheet" href="style.css">
 
     <style>
-        /* Telas */
+        /* Estilos específicos para telas */
         .screen {
             display: none;
             min-height: 100vh;
@@ -61,7 +58,6 @@
             display: block;
         }
 
-        /* Login Container */
         .login-container {
             display: flex;
             justify-content: center;
@@ -69,13 +65,6 @@
             min-height: 100vh;
             padding: 20px;
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        }
-
-        /* Loading */
-        .loading {
-            text-align: center;
-            padding: 50px;
-            color: #94a3b8;
         }
 
         .spinner {
@@ -98,9 +87,8 @@
             }
         }
 
-        /* Admin */
         .admin-container {
-            max-width: 800px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -129,16 +117,75 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(15, 23, 42, 0.95);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 9999;
+            z-index: 10000;
             backdrop-filter: blur(10px);
         }
 
-        /* Responsividade Admin */
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(10px);
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-xl);
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 8px;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        /* Responsividade */
         @media (max-width: 768px) {
             .admin-container {
                 padding: 10px;
@@ -183,7 +230,7 @@
                 </div>
 
                 <div class="footer-note">
-                    <i class="fas fa-shield-alt"></i> Sistema Online | v3.0
+                    <i class="fas fa-shield-alt"></i> Sistema Online | v3.2 (OneDrive)
                 </div>
             </div>
         </div>
@@ -194,7 +241,7 @@
         <div class="app-header">
             <div>
                 <h1><i class="fas fa-user-shield"></i> Painel Administrativo</h1>
-                <p class="subtitle">Gerenciamento de Vendedores</p>
+                <p class="subtitle">Gerenciamento de Vendedores e Planilhas</p>
             </div>
             <button class="btn-primary btn-logout" onclick="mixLogout()">
                 <i class="fas fa-sign-out-alt"></i> Sair
@@ -202,6 +249,7 @@
         </div>
 
         <div class="admin-container">
+            <!-- Card: Cadastrar Vendedor -->
             <div class="card">
                 <h3><i class="fas fa-user-plus"></i> Cadastrar Novo Vendedor</h3>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
@@ -213,6 +261,27 @@
                 </div>
             </div>
 
+            <!-- Card: Gerenciar Planilhas -->
+            <div class="card">
+                <h3><i class="fas fa-layer-group"></i> Gerenciar Planilhas</h3>
+                <p class="text-secondary mb-4">Gerencie múltiplas planilhas por categoria.</p>
+
+                <div class="flex flex-col gap-4">
+                    <button class="btn-primary" onclick="showAddSpreadsheetModal()">
+                        <i class="fas fa-plus-circle mr-2"></i> Adicionar Planilha
+                    </button>
+                </div>
+
+                <div id="spreadsheets-list" class="mt-6 space-y-4">
+                    <!-- Lista será carregada dinamicamente -->
+                    <div class="loading-card p-8 text-center">
+                        <div class="spinner"></div>
+                        <p class="mt-4 text-secondary">Carregando planilhas...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card: Vendedores Cadastrados -->
             <div class="card">
                 <h3><i class="fas fa-users"></i> Vendedores Cadastrados</h3>
                 <div id="users-container" class="loading">
@@ -223,7 +292,7 @@
         </div>
     </div>
 
-    <!-- TELA DO DASHBOARD (será carregada dinamicamente) -->
+    <!-- TELA DO DASHBOARD -->
     <div id="dashboard-screen" class="screen">
         <div id="dashboard-content">
             <div class="loading">
