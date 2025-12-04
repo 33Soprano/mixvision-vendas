@@ -1,15 +1,45 @@
 // ============================================
-// PARTE 1: SISTEMA DE AUTENTICAÇÃO COM FIREBASE
+// SISTEMA MIXVISION COM ONEDRIVE
 // ============================================
 
-// Variáveis globais do sistema de autenticação
+// Variáveis globais
 let currentMixUser = null;
 let firebaseDb = null;
+let currentSpreadsheet = null;
+let currentSpreadsheetName = null;
+let currentSpreadsheetId = null;
+
+// Configuração das Categorias
+const CATEGORY_CONFIG = {
+    'mercearia': {
+        name: 'Mercearia',
+        color: '#3b82f6',
+        icon: 'fa-store',
+        description: 'Produtos básicos de mercearia'
+    },
+    'limpeza': {
+        name: 'Limpeza',
+        color: '#8b5cf6',
+        icon: 'fa-broom',
+        description: 'Produtos de limpeza e higiene'
+    },
+    'mdias': {
+        name: 'M Dias',
+        color: '#f59e0b',
+        icon: 'fa-calendar-day',
+        description: 'Produtos de venda média'
+    },
+    'saudaveis': {
+        name: 'Saudáveis',
+        color: '#10b981',
+        icon: 'fa-apple-alt',
+        description: 'Produtos saudáveis e naturais'
+    }
+};
 
 // ===== INICIALIZAÇÃO FIREBASE =====
 async function initFirebase() {
     try {
-        // Aguardar Firebase carregar
         if (!window.firebaseDb) {
             console.log("Aguardando Firebase...");
             await new Promise(resolve => {
@@ -30,10 +60,7 @@ async function initFirebase() {
             firebaseDb = window.firebaseDb;
             console.log("✅ Firebase Firestore conectado!");
 
-            // Verificar se admin existe
             await checkAdminUser();
-
-            // Verificar login salvo
             checkSavedLogin();
         } else {
             console.error("❌ Firebase não inicializado");
@@ -49,7 +76,6 @@ async function checkAdminUser() {
             "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
         );
 
-        // USANDO ÍNDICE: role + __name__
         const q = query(
             collection(firebaseDb, 'users'),
             where('role', '==', 'admin')
@@ -90,6 +116,7 @@ function checkSavedLogin() {
             if (currentMixUser.role === 'admin') {
                 showScreen('admin-screen');
                 mixLoadUsers();
+                loadAdminSpreadsheets();
             } else {
                 loadDashboardScreen();
             }
@@ -110,7 +137,6 @@ async function mixLogin() {
         return;
     }
 
-    // Mostrar loading
     if (loginBtn) {
         loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
         loginBtn.disabled = true;
@@ -130,6 +156,7 @@ async function mixLogin() {
             localStorage.setItem('mixvision_user', JSON.stringify(currentMixUser));
             showScreen('admin-screen');
             mixLoadUsers();
+            loadAdminSpreadsheets();
             return;
         }
 
@@ -160,6 +187,7 @@ async function mixLogin() {
             if (currentMixUser.role === 'admin') {
                 showScreen('admin-screen');
                 mixLoadUsers();
+                loadAdminSpreadsheets();
             } else {
                 loadDashboardScreen();
             }
@@ -190,7 +218,6 @@ async function mixCreateUser() {
         return;
     }
 
-    // Gerar token aleatório
     const token = Math.random().toString(36).substring(2, 10).toUpperCase();
 
     if (createBtn) {
@@ -234,7 +261,6 @@ async function mixLoadUsers() {
             "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
         );
 
-        // USANDO ÍNDICE: role + createdAt + __name__
         const q = query(
             collection(firebaseDb, 'users'),
             where('role', '==', 'user'),
@@ -268,70 +294,7 @@ async function mixLoadUsers() {
         container.innerHTML = html;
     } catch (error) {
         console.error('Erro ao carregar usuários:', error);
-
-        // Fallback: tentar sem orderBy se ainda der erro de índice
-        if (error.code === 'failed-precondition') {
-            console.log('Tentando fallback sem orderBy...');
-            tryFallbackLoadUsers(container);
-        } else {
-            container.innerHTML = '<p style="color: #ef4444;">Erro ao carregar vendedores.</p>';
-        }
-    }
-}
-
-// Fallback se índice ainda não estiver pronto
-async function tryFallbackLoadUsers(container) {
-    try {
-        const { collection, query, where, getDocs } = await import(
-            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
-        );
-
-        const q = query(
-            collection(firebaseDb, 'users'),
-            where('role', '==', 'user')
-        );
-
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            container.innerHTML = '<p>Nenhum vendedor cadastrado ainda.</p>';
-            return;
-        }
-
-        // Ordenar manualmente
-        const usersArray = [];
-        querySnapshot.forEach(doc => {
-            const user = doc.data();
-            user.id = doc.id;
-            usersArray.push(user);
-        });
-
-        usersArray.sort((a, b) => {
-            const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-            const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-            return dateB - dateA;
-        });
-
-        let html = '';
-        usersArray.forEach(user => {
-            const date = user.createdAt ? new Date(user.createdAt) : new Date();
-            html += `
-                <div class="user-item">
-                    <div>
-                        <strong>${user.name}</strong><br>
-                        <small style="color: #94a3b8; font-size: 12px;">
-                            Criado em: ${date.toLocaleDateString('pt-BR')}
-                        </small>
-                    </div>
-                    <div class="token-display">${user.token}</div>
-                </div>
-            `;
-        });
-
-        container.innerHTML = html;
-    } catch (fallbackError) {
-        console.error('Fallback também falhou:', fallbackError);
-        container.innerHTML = '<p style="color: #ef4444;">Índice ainda não está pronto. Aguarde alguns minutos.</p>';
+        container.innerHTML = '<p style="color: #ef4444;">Erro ao carregar vendedores.</p>';
     }
 }
 
@@ -341,6 +304,9 @@ function mixLogout() {
     localStorage.removeItem('userName');
     localStorage.removeItem('userRole');
     currentMixUser = null;
+    currentSpreadsheet = null;
+    currentSpreadsheetName = null;
+    currentSpreadsheetId = null;
     showScreen('login-screen');
     const tokenInput = document.getElementById('token-input');
     if (tokenInput) tokenInput.value = '';
@@ -380,12 +346,327 @@ function hideLoading() {
     if (loading) loading.classList.add('hidden');
 }
 
-// ===== CARREGAR DASHBOARD =====
+// ============================================
+// SISTEMA DE PLANILHAS COM ONEDRIVE
+// ============================================
+
+// ===== FUNÇÕES DE CONVERSÃO DE LINK =====
+function convertOneDriveLink(originalLink) {
+    // Se já for um link da API, retorna como está
+    if (originalLink.includes('api.onedrive.com')) {
+        return originalLink;
+    }
+
+    // Remove parâmetros como ?e=ibxAs4
+    const cleanLink = originalLink.split('?')[0];
+
+    try {
+        // Codifica para base64 URL safe
+        const base64 = btoa(cleanLink)
+            .replace(/=+$/, '')  // Remove = no final
+            .replace(/\//g, '_') // / → _
+            .replace(/\+/g, '-'); // + → -
+
+        // Retorna link da API do OneDrive
+        return `https://api.onedrive.com/v1.0/shares/u!${base64}/driveitem/content`;
+    } catch (error) {
+        console.error('Erro ao converter link:', error);
+        return originalLink;
+    }
+}
+
+// ===== ADMIN: GERENCIAMENTO DE PLANILHAS =====
+function showAddSpreadsheetModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Adicionar Nova Planilha</h3>
+                <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <p class="text-secondary mb-6">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Cole o link do OneDrive e preencha os dados da planilha
+                </p>
+                
+                <div class="space-y-4">
+                    <div class="form-group">
+                        <label><i class="fas fa-link mr-2"></i>Link do OneDrive</label>
+                        <input type="text" id="modal-link" class="form-control" 
+                               placeholder="https://1drv.ms/x/s!ABC123...">
+                        <small class="text-xs text-secondary mt-1">
+                            Compartilhe no OneDrive → "Qualquer pessoa" → Cole o link aqui
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label><i class="fas fa-file-excel mr-2"></i>Nome da Planilha</label>
+                        <input type="text" id="modal-name" class="form-control" 
+                               placeholder="Ex: Produtos Saudáveis">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label><i class="fas fa-tag mr-2"></i>Categoria</label>
+                        <div class="modal-categories">
+                            ${Object.entries(CATEGORY_CONFIG).map(([key, config]) => `
+                                <button type="button" class="modal-category-btn ${key} ${key === 'mercearia' ? 'active' : ''}" 
+                                        onclick="selectCategory('${key}')">
+                                    <i class="fas ${config.icon}"></i>
+                                    ${config.name}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <input type="hidden" id="modal-category" value="mercearia">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label><i class="fas fa-align-left mr-2"></i>Descrição</label>
+                        <textarea id="modal-description" class="form-control" rows="3" 
+                                  placeholder="Descreva o conteúdo desta planilha..."></textarea>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+                            Cancelar
+                        </button>
+                        <button class="btn-primary" onclick="addNewSpreadsheet()">
+                            <i class="fas fa-save mr-2"></i> Salvar Planilha
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+// Função para selecionar categoria no modal
+function selectCategory(category) {
+    // Remover active de todos os botões
+    document.querySelectorAll('.modal-category-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // Adicionar active ao botão clicado
+    const btn = document.querySelector(`.modal-category-btn.${category}`);
+    if (btn) {
+        btn.classList.add('active');
+        document.getElementById('modal-category').value = category;
+    }
+}
+
+async function addNewSpreadsheet() {
+    const linkInput = document.getElementById('modal-link');
+    const nameInput = document.getElementById('modal-name');
+    const categoryInput = document.getElementById('modal-category');
+    const descriptionInput = document.getElementById('modal-description');
+
+    const originalLink = linkInput ? linkInput.value.trim() : '';
+    const name = nameInput ? nameInput.value.trim() : '';
+    const category = categoryInput ? categoryInput.value : 'mercearia';
+    const description = descriptionInput ? descriptionInput.value.trim() : '';
+
+    if (!originalLink) {
+        alert('Por favor, cole o link do OneDrive!');
+        return;
+    }
+
+    if (!name) {
+        alert('Por favor, informe um nome para a planilha!');
+        return;
+    }
+
+    // Converter link do OneDrive
+    const downloadUrl = convertOneDriveLink(originalLink);
+
+    showLoading('Salvando planilha...');
+
+    try {
+        const { collection, addDoc, serverTimestamp } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        // Extrair nome do arquivo do link
+        const fileName = extractFileNameFromLink(originalLink) || 'planilha.xlsx';
+        const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.mercearia;
+
+        await addDoc(collection(firebaseDb, 'spreadsheets'), {
+            name: name,
+            fileName: fileName,
+            originalLink: originalLink,
+            downloadUrl: downloadUrl,
+            category: category,
+            description: description,
+            icon: config.icon,
+            uploadedAt: serverTimestamp(),
+            uploadedBy: currentMixUser?.id || 'admin',
+            status: 'ativo'
+        });
+
+        hideLoading();
+        alert('✅ Planilha adicionada com sucesso!');
+
+        // Fechar modal e recarregar lista
+        document.querySelector('.modal-overlay')?.remove();
+        loadAdminSpreadsheets();
+
+    } catch (error) {
+        hideLoading();
+        alert('❌ Erro ao salvar planilha: ' + error.message);
+    }
+}
+
+function extractFileNameFromLink(link) {
+    // Tenta extrair nome do arquivo do link
+    const match = link.match(/[^/]+\.(xlsx|xls|csv)/i);
+    return match ? match[0] : 'planilha.xlsx';
+}
+
+// Função para gerar card de planilha
+function generateSpreadsheetCard(doc, data, isAdmin = false) {
+    const category = data.category || 'mercearia';
+    const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.mercearia;
+    const date = data.uploadedAt?.toDate ? data.uploadedAt.toDate() : new Date();
+
+    if (isAdmin) {
+        return `
+            <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="spreadsheet-icon ${category}" style="width: 40px; height: 40px; font-size: 18px;">
+                            <i class="fas ${config.icon}"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold">${data.name}</h4>
+                            <p class="text-secondary text-sm">${data.fileName}</p>
+                        </div>
+                    </div>
+                    <button onclick="deleteSpreadsheet('${doc.id}')" 
+                            class="text-red-400 hover:text-red-300 p-2">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+                
+                <p class="text-sm text-secondary mb-3">${data.description || config.description}</p>
+                
+                <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
+                    <span class="category-badge ${category}">
+                        <i class="fas ${config.icon}"></i>
+                        ${config.name}
+                    </span>
+                    <span class="text-xs text-secondary">
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        ${date.toLocaleDateString('pt-BR')}
+                    </span>
+                </div>
+            </div>
+        `;
+    } else {
+        return `
+            <div class="spreadsheet-card ${category}" 
+                 onclick="selectSpreadsheet('${doc.id}', '${data.name}', '${data.downloadUrl}')">
+                <div class="spreadsheet-icon">
+                    <i class="fas ${config.icon}"></i>
+                </div>
+                <h4>${data.name}</h4>
+                <p class="spreadsheet-desc">${data.description || config.description}</p>
+                <div class="spreadsheet-meta">
+                    <span class="category-badge ${category}">
+                        <i class="fas ${config.icon}"></i>
+                        ${config.name}
+                    </span>
+                    <span>
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        ${date.toLocaleDateString('pt-BR')}
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+}
+
+async function loadAdminSpreadsheets() {
+    const container = document.getElementById('spreadsheets-list');
+    if (!container) return;
+
+    try {
+        const { collection, query, orderBy, getDocs } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        const q = query(
+            collection(firebaseDb, 'spreadsheets'),
+            orderBy('uploadedAt', 'desc')
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <h4 class="text-xl font-semibold mt-4">Nenhuma planilha cadastrada</h4>
+                    <p class="text-secondary mt-2">Clique em "Adicionar Planilha" para começar.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            html += generateSpreadsheetCard(doc, data, true);
+        });
+        html += '</div>';
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Erro ao carregar planilhas:', error);
+        container.innerHTML = `
+            <div class="p-4 bg-red-900/30 border border-red-500/30 rounded-lg">
+                <p class="text-red-300">Erro ao carregar planilhas: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+async function deleteSpreadsheet(spreadsheetId) {
+    if (!confirm('Tem certeza que deseja excluir esta planilha?')) return;
+
+    try {
+        showLoading('Excluindo planilha...');
+
+        const { doc, deleteDoc } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        await deleteDoc(doc(firebaseDb, 'spreadsheets', spreadsheetId));
+
+        hideLoading();
+        alert('✅ Planilha excluída com sucesso!');
+
+        loadAdminSpreadsheets();
+
+    } catch (error) {
+        hideLoading();
+        alert('❌ Erro ao excluir planilha: ' + error.message);
+    }
+}
+
+// ===== DASHBOARD: SELEÇÃO DE PLANILHAS =====
 function loadDashboardScreen() {
     const dashboardContent = document.getElementById('dashboard-content');
     const userName = currentMixUser?.name || localStorage.getItem('userName') || 'Vendedor';
 
-    // HTML do dashboard - VERSÃO CORRIGIDA (APENAS 2 ABAS)
     dashboardContent.innerHTML = `
         <div class="app-container">
             <header class="app-header">
@@ -410,106 +691,148 @@ function loadDashboardScreen() {
                 </div>
             </header>
 
-            <section id="upload-section" class="card">
-                <h3><i class="fas fa-file-upload"></i> Carregar Dados de Vendas</h3>
-                <p class="text-secondary mb-4">Faça upload da planilha mais recente para analisar oportunidades por cliente</p>
-
-                <div id="drop-zone" class="upload-area">
-                    <div class="upload-icon">
-                        <i class="fas fa-cloud-upload-alt"></i>
+            <!-- SEÇÃO: Seleção de Planilha -->
+            <section id="spreadsheet-selector" class="card">
+                <div class="spreadsheet-selector-header">
+                    <div>
+                        <h3><i class="fas fa-file-alt mr-2"></i> Selecione a Planilha</h3>
+                        <p class="text-secondary">Escolha qual categoria de dados você quer analisar:</p>
                     </div>
-                    <h4 class="text-xl font-semibold mb-2">Arraste e solte sua planilha</h4>
-                    <p class="text-secondary mb-6">Formatos suportados: .xlsx, .xls, .csv</p>
-                    <button id="btn-upload" class="btn-primary">
-                        <i class="fas fa-folder-open"></i> Procurar Arquivo
-                    </button>
-                    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" class="hidden" />
-                    <p class="text-xs text-muted mt-6">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        Sua planilha será processada localmente, garantindo segurança dos dados
-                    </p>
+                    <div class="category-filters">
+                        <button class="category-filter-btn all active" onclick="filterSpreadsheets('all')">
+                            Todas
+                        </button>
+                        ${Object.entries(CATEGORY_CONFIG).map(([key, config]) => `
+                            <button class="category-filter-btn ${key}" onclick="filterSpreadsheets('${key}')">
+                                <i class="fas ${config.icon} mr-2"></i>
+                                ${config.name}
+                            </button>
+                        `).join('')}
+                    </div>
                 </div>
-
-                <div class="stats-grid mt-6" id="upload-stats" style="display: none;">
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-consultants">0</div>
-                        <div class="stat-label">Consultores</div>
+                
+                <div class="spreadsheet-grid" id="spreadsheet-cards">
+                    <div class="loading-card p-8 text-center">
+                        <div class="spinner"></div>
+                        <p class="mt-4 text-secondary">Carregando planilhas...</p>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-clients">0</div>
-                        <div class="stat-label">Clientes</div>
+                </div>
+                
+                <div id="no-spreadsheets" class="hidden text-center py-12">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-folder-open"></i>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-products">0</div>
-                        <div class="stat-label">Produtos</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-opportunities">0</div>
-                        <div class="stat-label">Oportunidades</div>
-                    </div>
+                    <h4 class="text-xl font-semibold mt-4">Nenhuma planilha disponível</h4>
+                    <p class="text-secondary mt-2">Aguarde o administrador adicionar planilhas.</p>
                 </div>
             </section>
 
-            <section id="filters-section" class="card hidden">
-                <h3><i class="fas fa-filter"></i> Análise de Oportunidades</h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div class="form-group">
-                        <label><i class="fas fa-user-tie mr-2"></i>Consultor</label>
-                        <select id="consultant-select" class="form-control">
-                            <option value="">Selecionar consultor...</option>
-                        </select>
-                    </div>
-
-                    <div id="route-group" class="form-group">
-                        <label><i class="fas fa-route mr-2"></i>Rota</label>
-                        <select id="route-select" class="form-control" disabled>
-                            <option value="">Selecione primeiro o consultor</option>
-                        </select>
-                    </div>
-
-                    <div id="client-group" class="form-group">
-                        <label><i class="fas fa-building mr-2"></i>Cliente</label>
-                        <select id="client-select" class="form-control" disabled>
-                            <option value="">Selecione primeiro a rota</option>
-                        </select>
+            <!-- SEÇÃO: Dados da Planilha Selecionada -->
+            <section id="data-section" class="card hidden">
+                <!-- Cabeçalho dinâmico será inserido aqui -->
+                <div id="selected-spreadsheet-header"></div>
+                
+                <!-- Status e Estatísticas -->
+                <div id="data-status-area">
+                    <div class="stats-grid mb-8">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-consultants">0</div>
+                            <div class="stat-label">Consultores</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-clients">0</div>
+                            <div class="stat-label">Clientes</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-products">0</div>
+                            <div class="stat-label">Produtos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-opportunities">0</div>
+                            <div class="stat-label">Oportunidades</div>
+                        </div>
                     </div>
                 </div>
-
-                <!-- ABAS CORRETAS (APENAS 2) -->
-                <div class="tabs-container">
-                    <button id="tab-opportunities" class="tab-button active">
-                        <i class="fas fa-bullseye mr-2"></i>Oportunidades
-                    </button>
-                    <button id="tab-sold" class="tab-button">
-                        <i class="fas fa-check-circle mr-2"></i>Já Vendidos
-                    </button>
-                </div>
-
-                <div class="opportunity-count mb-6">
-                    <div>
-                        <div class="count-label" id="results-title">OPORTUNIDADES DE VENDA</div>
-                        <div class="count-display" id="opportunity-count-text">0 itens</div>
+                
+                <!-- Filtros e Análise -->
+                <section id="filters-section" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="form-group">
+                            <label><i class="fas fa-user-tie mr-2"></i>Consultor</label>
+                            <select id="consultant-select" class="form-control">
+                                <option value="">Selecionar consultor...</option>
+                            </select>
+                        </div>
+                        <div id="route-group" class="form-group">
+                            <label><i class="fas fa-route mr-2"></i>Rota</label>
+                            <select id="route-select" class="form-control" disabled>
+                                <option value="">Selecione primeiro o consultor</option>
+                            </select>
+                        </div>
+                        <div id="client-group" class="form-group">
+                            <label><i class="fas fa-building mr-2"></i>Cliente</label>
+                            <select id="client-select" class="form-control" disabled>
+                                <option value="">Selecione primeiro a rota</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-4">
-                        <div class="badge badge-profile" id="profile-badge">Perfil: N/D</div>
-                        <button id="btn-export" class="btn-primary" style="display: none;">
-                            <i class="fas fa-download"></i> Exportar
+                    
+                    <!-- Abas -->
+                    <div class="tabs-container">
+                        <button id="tab-opportunities" class="tab-button active">
+                            <i class="fas fa-bullseye mr-2"></i>Oportunidades
+                        </button>
+                        <button id="tab-sold" class="tab-button">
+                            <i class="fas fa-check-circle mr-2"></i>Já Vendidos
                         </button>
                     </div>
-                </div>
-
-                <div id="opportunities-list" class="opportunity-grid"></div>
-
-                <div id="empty-state" class="empty-state hidden">
-                    <div class="empty-state-icon">
-                        <i class="fas fa-chart-bar"></i>
+                    
+                    <!-- Contador -->
+                    <div class="opportunity-count mb-6">
+                        <div>
+                            <div class="count-label" id="results-title">OPORTUNIDADES DE VENDA</div>
+                            <div class="count-display" id="opportunity-count-text">0 itens</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="badge badge-profile" id="profile-badge">Perfil: N/D</div>
+                            <button id="btn-export" class="btn-primary" style="display: none;">
+                                <i class="fas fa-download"></i> Exportar
+                            </button>
+                        </div>
                     </div>
-                    <h4 class="text-xl font-semibold mb-2">Nenhum dado para exibir</h4>
-                    <p class="text-secondary">Selecione um consultor, rota e cliente para visualizar as oportunidades</p>
+                    
+                    <!-- Lista de Oportunidades -->
+                    <div id="opportunities-list" class="opportunity-grid"></div>
+                    
+                    <!-- Estado Vazio -->
+                    <div id="empty-state" class="empty-state hidden">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <h4 class="text-xl font-semibold mb-2">Nenhum dado para exibir</h4>
+                        <p class="text-secondary">Selecione um consultor, rota e cliente para visualizar as oportunidades</p>
+                    </div>
+                </section>
+                
+                <!-- Mensagem de Carregamento -->
+                <div id="data-loading" class="text-center py-12">
+                    <div class="spinner"></div>
+                    <p class="text-secondary mt-4">Carregando dados da planilha...</p>
+                </div>
+                
+                <!-- Mensagem de Erro -->
+                <div id="data-error" class="hidden p-6 bg-red-900/30 border border-red-500/30 rounded-lg">
+                    <h4 class="font-semibold text-red-300 mb-3">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>Erro ao carregar dados
+                    </h4>
+                    <p id="error-message" class="text-sm mb-4">Não foi possível carregar a planilha selecionada.</p>
+                    <button id="btn-retry" class="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded text-sm">
+                        <i class="fas fa-redo mr-1"></i>Tentar Novamente
+                    </button>
                 </div>
             </section>
 
+            <!-- Console do Sistema -->
             <section class="card">
                 <div class="flex justify-between items-center mb-4">
                     <h3><i class="fas fa-terminal"></i> Console do Sistema</h3>
@@ -522,48 +845,271 @@ function loadDashboardScreen() {
                 </div>
             </section>
         </div>
-        
-        <div id="loading-overlay" class="loading-overlay hidden">
-            <div class="spinner"></div>
-            <p class="text-secondary mt-4">Processando planilha...</p>
-        </div>
     `;
 
     showScreen('dashboard-screen');
 
-    // Inicializar o dashboard
     setTimeout(() => {
-        // Atualizar nome do usuário
-        const userElement = document.getElementById('current-user');
-        if (userElement && currentMixUser) {
-            userElement.textContent = currentMixUser.name;
-        }
-
-        // Inicializar app
-        if (typeof initializeApp === 'function') {
-            initializeApp();
-        }
+        initializeApp();
+        loadAvailableSpreadsheets();
     }, 100);
 }
 
+// ===== CARREGAR PLANILHAS DISPONÍVEIS =====
+async function loadAvailableSpreadsheets() {
+    try {
+        showLoading('Carregando planilhas disponíveis...');
+
+        const { collection, query, orderBy, getDocs } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        const q = query(
+            collection(firebaseDb, 'spreadsheets'),
+            orderBy('uploadedAt', 'desc')
+        );
+
+        const snapshot = await getDocs(q);
+
+        const cardsContainer = document.getElementById('spreadsheet-cards');
+        const noSpreadsheets = document.getElementById('no-spreadsheets');
+
+        if (snapshot.empty) {
+            cardsContainer.innerHTML = '';
+            noSpreadsheets.classList.remove('hidden');
+            hideLoading();
+            return;
+        }
+
+        // Gerar cartões para cada planilha
+        let cardsHTML = '<div class="spreadsheet-grid">';
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            cardsHTML += generateSpreadsheetCard(doc, data, false);
+        });
+        cardsHTML += '</div>';
+
+        cardsContainer.innerHTML = cardsHTML;
+        noSpreadsheets.classList.add('hidden');
+        hideLoading();
+
+    } catch (error) {
+        console.error('Erro ao carregar planilhas:', error);
+        hideLoading();
+        document.getElementById('spreadsheet-cards').innerHTML = `
+            <div class="col-span-3 p-6 text-center">
+                <div class="text-red-400 mb-3">
+                    <i class="fas fa-exclamation-triangle text-3xl"></i>
+                </div>
+                <h4 class="font-semibold mb-2">Erro ao carregar planilhas</h4>
+                <p class="text-secondary text-sm">${error.message}</p>
+                <button onclick="loadAvailableSpreadsheets()" class="btn-primary mt-4">
+                    <i class="fas fa-redo mr-2"></i>Tentar Novamente
+                </button>
+            </div>
+        `;
+    }
+}
+
+// ===== FUNÇÃO PARA FILTRAR PLANILHAS =====
+function filterSpreadsheets(category) {
+    // Atualizar botões ativos
+    document.querySelectorAll('.category-filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`.category-filter-btn.${category}`).classList.add('active');
+
+    // Filtrar cartões
+    const cards = document.querySelectorAll('.spreadsheet-card');
+    cards.forEach(card => {
+        if (category === 'all' || card.classList.contains(category)) {
+            card.style.display = 'block';
+            card.style.animation = 'slideInUp 0.4s ease-out';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// ===== SELEÇÃO E CARREGAMENTO DE PLANILHA =====
+async function selectSpreadsheet(spreadsheetId, spreadsheetName, downloadUrl) {
+    currentSpreadsheetId = spreadsheetId;
+    currentSpreadsheetName = spreadsheetName;
+
+    // Atualizar UI
+    document.getElementById('spreadsheet-selector').classList.add('hidden');
+    document.getElementById('data-section').classList.remove('hidden');
+
+    // Carregar dados da planilha para obter a categoria
+    try {
+        const { doc, getDoc } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        const spreadsheetDoc = await getDoc(doc(firebaseDb, 'spreadsheets', spreadsheetId));
+
+        if (spreadsheetDoc.exists()) {
+            const data = spreadsheetDoc.data();
+            const category = data.category || 'mercearia';
+            const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.mercearia;
+
+            // Atualizar cabeçalho
+            const headerHTML = `
+                <div class="selected-spreadsheet-header ${category}">
+                    <div class="selected-spreadsheet-icon">
+                        <i class="fas ${config.icon}"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 4px 0; font-size: 20px;">
+                            ${spreadsheetName}
+                        </h3>
+                        <p class="text-secondary" style="margin: 0; font-size: 14px;">
+                            <span class="category-badge ${category}">
+                                <i class="fas ${config.icon}"></i>
+                                ${config.name}
+                            </span>
+                            • ${data.description || config.description}
+                            • Carregada em: ${new Date().toLocaleTimeString('pt-BR')}
+                        </p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="btn-change-spreadsheet" class="btn-secondary">
+                            <i class="fas fa-exchange-alt mr-2"></i> Trocar Planilha
+                        </button>
+                        <button id="btn-refresh-data" class="btn-primary">
+                            <i class="fas fa-sync-alt mr-2"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('selected-spreadsheet-header').innerHTML = headerHTML;
+
+            // Reatachar eventos
+            document.getElementById('btn-change-spreadsheet').addEventListener('click', () => {
+                document.getElementById('data-section').classList.add('hidden');
+                document.getElementById('spreadsheet-selector').classList.remove('hidden');
+                currentSpreadsheetId = null;
+                currentSpreadsheetName = null;
+            });
+
+            document.getElementById('btn-refresh-data').addEventListener('click', () => {
+                loadSelectedSpreadsheetFromId(spreadsheetId);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar informações da planilha:', error);
+    }
+
+    // Carregar dados da planilha selecionada
+    await loadSelectedSpreadsheet(downloadUrl);
+}
+
+async function loadSelectedSpreadsheet(downloadUrl) {
+    showDataLoading();
+
+    try {
+        showLoading('Baixando planilha do OneDrive...');
+
+        // Fazer download do OneDrive
+        const response = await fetch(downloadUrl);
+
+        if (!response.ok) {
+            throw new Error(`Erro ao baixar: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        hideLoading();
+
+        // Processar dados
+        const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+
+        processData(rows);
+
+        hideDataLoading();
+
+    } catch (error) {
+        console.error('Erro ao carregar planilha:', error);
+        hideLoading();
+        showDataError(`Erro ao carregar "${currentSpreadsheetName}": ${error.message}`);
+    }
+}
+
+function showDataLoading() {
+    const loadingEl = document.getElementById('data-loading');
+    const filtersEl = document.getElementById('filters-section');
+    const errorEl = document.getElementById('data-error');
+
+    if (loadingEl) loadingEl.classList.remove('hidden');
+    if (filtersEl) filtersEl.classList.add('hidden');
+    if (errorEl) errorEl.classList.add('hidden');
+}
+
+function hideDataLoading() {
+    const loadingEl = document.getElementById('data-loading');
+    const filtersEl = document.getElementById('filters-section');
+
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (filtersEl) filtersEl.classList.remove('hidden');
+}
+
+function showDataError(message) {
+    const loadingEl = document.getElementById('data-loading');
+    const filtersEl = document.getElementById('filters-section');
+    const errorEl = document.getElementById('data-error');
+    const messageEl = document.getElementById('error-message');
+
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (filtersEl) filtersEl.classList.add('hidden');
+    if (errorEl) errorEl.classList.remove('hidden');
+    if (messageEl) messageEl.textContent = message;
+
+    // Configurar botão de retry
+    const retryBtn = document.getElementById('btn-retry');
+    if (retryBtn) {
+        retryBtn.onclick = () => {
+            loadSelectedSpreadsheetFromId(currentSpreadsheetId);
+        };
+    }
+}
+
+async function loadSelectedSpreadsheetFromId(spreadsheetId) {
+    try {
+        const { doc, getDoc } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        const spreadsheetDoc = await getDoc(doc(firebaseDb, 'spreadsheets', spreadsheetId));
+
+        if (spreadsheetDoc.exists()) {
+            const data = spreadsheetDoc.data();
+            await loadSelectedSpreadsheet(data.downloadUrl);
+        }
+    } catch (error) {
+        showDataError(`Erro ao recuperar dados da planilha: ${error.message}`);
+    }
+}
+
 // ============================================
-// PARTE 2: SEU CÓDIGO ORIGINAL DE PROCESSAMENTO
+// SISTEMA DE PROCESSAMENTO DE DADOS (ORIGINAL)
 // ============================================
 
-// --- Variáveis Globais ---
+// --- Variáveis Globais de Processamento ---
 let allProducts = new Set();
 let hierarchy = {};
-let currentTab = 'opportunities'; // 'opportunities' ou 'sold'
+let currentTab = 'opportunities';
 let currentProfile = 'N/D';
 let currentMissing = [];
 let currentSold = [];
 let currentConsultantName = '';
-let consultantData = {};
 
 // --- DOM Elements ---
-let fileInput, dropZone, uploadSection, filtersSection, consultantSelect;
-let routeGroup, opportunityCount, opportunitiesList, debugLog;
-let resultsTitle, tabOpportunities, tabSold, btnUpload;
+let consultantSelect, routeGroup, opportunitiesList, debugLog;
+let resultsTitle, tabOpportunities, tabSold;
 
 // --- Helpers ---
 function log(msg) {
@@ -634,7 +1180,6 @@ function processData(data) {
     log(`Iniciando processamento de ${data.length} linhas...`);
     if (!data || data.length === 0) { log('Planilha vazia'); return; }
 
-    // Mostrar loading
     showLoading('Processando planilha...');
 
     const maxScan = Math.min(50, data.length);
@@ -749,7 +1294,7 @@ function processData(data) {
 
         // FILTRO CRÍTICO: Mostrar apenas dados do consultor logado
         if (consultant !== currentConsultantName) {
-            continue; // Pula dados de outros consultores
+            continue;
         }
 
         const client = String(clientCell).trim();
@@ -806,19 +1351,12 @@ function processData(data) {
     log(`Processamento finalizado. Consultores: ${Object.keys(hierarchy).length}`);
     log(`Dados filtrados apenas para: ${currentConsultantName}`);
 
-    // Mostrar mensagem se nenhum dado foi encontrado para o consultor
     if (Object.keys(hierarchy).length === 0) {
         alert(`ATENÇÃO: Nenhum dado encontrado para o consultor "${currentConsultantName}". Verifique se o nome está exatamente igual na planilha.`);
     }
 
-    // Esconder loading
     hideLoading();
-
     populateConsultants();
-
-    // Show filters, hide upload
-    if (uploadSection) uploadSection.classList.add('hidden');
-    if (filtersSection) filtersSection.classList.remove('hidden');
 }
 
 function updateStatistics(consultants, clients, products, opportunities) {
@@ -826,13 +1364,11 @@ function updateStatistics(consultants, clients, products, opportunities) {
     const statClients = document.getElementById('stat-clients');
     const statProducts = document.getElementById('stat-products');
     const statOpportunities = document.getElementById('stat-opportunities');
-    const uploadStats = document.getElementById('upload-stats');
 
     if (statConsultants) statConsultants.textContent = consultants;
     if (statClients) statClients.textContent = clients;
     if (statProducts) statProducts.textContent = products;
     if (statOpportunities) statOpportunities.textContent = opportunities;
-    if (uploadStats) uploadStats.style.display = 'grid';
 }
 
 function populateConsultants() {
@@ -840,14 +1376,11 @@ function populateConsultants() {
 
     consultantSelect.innerHTML = '<option value="">Selecione...</option>';
 
-    // Mostrar apenas o consultor logado
     const consultants = Object.keys(hierarchy).sort();
 
     if (consultants.length > 0) {
-        // Auto-selecionar o consultor logado
         consultantSelect.innerHTML = `<option value="${escapeHtml(currentConsultantName)}" selected>${escapeHtml(currentConsultantName)}</option>`;
 
-        // Disparar o evento de change para carregar as rotas
         setTimeout(() => {
             consultantSelect.dispatchEvent(new Event('change'));
         }, 100);
@@ -859,7 +1392,6 @@ function populateConsultants() {
 function handleConsultantChange() {
     const selected = consultantSelect.value;
 
-    // Limpar elementos filhos do route-group
     while (routeGroup.firstChild) {
         routeGroup.removeChild(routeGroup.firstChild);
     }
@@ -926,7 +1458,6 @@ function handleClientChange(consultant, route, client) {
     const soldSet = clientData.products;
     currentProfile = clientData.profile;
 
-    // Update profile badge
     const profileBadge = document.getElementById('profile-badge');
     if (profileBadge) {
         profileBadge.textContent = `Perfil: ${currentProfile}`;
@@ -951,7 +1482,6 @@ function renderList() {
     const items = currentTab === 'opportunities' ? currentMissing : currentSold;
     const countText = currentTab === 'opportunities' ? 'Oportunidades' : 'Itens Vendidos';
 
-    // Update counts and badges
     const opportunityCountText = document.getElementById('opportunity-count-text');
     const resultsTitleElement = document.getElementById('results-title');
 
@@ -963,7 +1493,6 @@ function renderList() {
         resultsTitleElement.textContent = currentTab === 'opportunities' ? 'OPORTUNIDADES DE VENDA' : 'ITENS JÁ VENDIDOS';
     }
 
-    // Hide empty state if showing results
     const emptyState = document.getElementById('empty-state');
     if (emptyState) emptyState.classList.add('hidden');
 
@@ -1001,7 +1530,6 @@ function renderList() {
         opportunitiesList.appendChild(div);
     });
 
-    // Add event listeners for copy buttons
     if (currentTab === 'opportunities') {
         document.querySelectorAll('.opportunity-card .btn-primary').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -1033,58 +1561,16 @@ function fallbackCopy(text) {
     ta.remove();
 }
 
-function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    log(`Arquivo selecionado: ${file.name}`);
-
-    // Save to localStorage
-    const readerForStorage = new FileReader();
-    readerForStorage.onload = (e) => {
-        try {
-            localStorage.setItem('lastSpreadsheet', e.target.result);
-            localStorage.setItem('lastSpreadsheetName', file.name);
-            log('Arquivo salvo em cache.');
-        } catch (err) {
-            log('Aviso: Arquivo muito grande para salvar em cache.');
-        }
-    };
-    readerForStorage.readAsDataURL(file);
-
-    // Process
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-            processData(rows);
-        } catch (err) {
-            log(`ERRO FATAL: ${err.message}`);
-            alert('Erro ao ler arquivo Excel.');
-            hideLoading();
-        }
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-// --- Event Listeners ---
+// --- Initialize App ---
 function initializeApp() {
     // Get DOM elements
-    fileInput = document.getElementById('file-input');
-    dropZone = document.getElementById('drop-zone');
-    uploadSection = document.getElementById('upload-section');
-    filtersSection = document.getElementById('filters-section');
     consultantSelect = document.getElementById('consultant-select');
     routeGroup = document.getElementById('route-group');
-    opportunityCount = document.getElementById('opportunity-count');
     opportunitiesList = document.getElementById('opportunities-list');
     debugLog = document.getElementById('debug-log');
     resultsTitle = document.getElementById('results-title');
     tabOpportunities = document.getElementById('tab-opportunities');
     tabSold = document.getElementById('tab-sold');
-    btnUpload = document.getElementById('btn-upload');
 
     // Set current user name
     const userName = currentMixUser?.name || localStorage.getItem('userName');
@@ -1097,33 +1583,6 @@ function initializeApp() {
     }
 
     // Setup event listeners
-    if (btnUpload) {
-        btnUpload.addEventListener('click', () => fileInput.click());
-    }
-
-    if (fileInput) {
-        fileInput.addEventListener('change', handleFileSelect);
-    }
-
-    if (dropZone) {
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length) {
-                fileInput.files = files;
-                handleFileSelect({ target: { files: files } });
-            }
-        });
-    }
-
     if (consultantSelect) {
         consultantSelect.addEventListener('change', handleConsultantChange);
     }
@@ -1154,75 +1613,13 @@ function initializeApp() {
         });
     }
 
-    // Auto Load Check
-    setTimeout(() => {
-        const saved = localStorage.getItem('lastSpreadsheet');
-        if (saved) {
-            const filename = localStorage.getItem('lastSpreadsheetName') || 'Planilha Salva';
-            log(`Cache encontrado: ${filename}`);
-
-            // Create a restore banner inside upload section
-            const restoreDiv = document.createElement('div');
-            restoreDiv.className = 'mt-6 p-4 bg-blue-900/30 border border-blue-500/30 rounded-lg flex items-center justify-between';
-            restoreDiv.innerHTML = `
-                <span class="text-blue-200 text-sm">
-                    <i class="fas fa-history mr-2"></i>Restaurar "${filename}"?
-                </span>
-                <div class="flex gap-2">
-                    <button id="btn-restore" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition-colors">
-                        <i class="fas fa-redo mr-1"></i>Restaurar
-                    </button>
-                    <button id="btn-clear" class="px-3 py-1 bg-red-900/50 hover:bg-red-800 text-red-200 rounded text-sm transition-colors">
-                        <i class="fas fa-trash mr-1"></i>Limpar
-                    </button>
-                </div>
-            `;
-
-            // Insert after the upload area
-            const container = dropZone.parentNode;
-            if (container) {
-                container.insertBefore(restoreDiv, dropZone.nextSibling);
-
-                document.getElementById('btn-restore').onclick = () => {
-                    try {
-                        const byteString = atob(saved.split(',')[1]);
-                        const ab = new ArrayBuffer(byteString.length);
-                        const ia = new Uint8Array(ab);
-                        for (let i = 0; i < byteString.length; i++) {
-                            ia[i] = byteString.charCodeAt(i);
-                        }
-                        const workbook = XLSX.read(ab, { type: 'array' });
-                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-                        processData(rows);
-                        log('Restaurado com sucesso.');
-                        restoreDiv.remove();
-                    } catch (e) {
-                        log('Erro ao restaurar: ' + e.message);
-                        localStorage.removeItem('lastSpreadsheet');
-                        restoreDiv.remove();
-                    }
-                };
-
-                document.getElementById('btn-clear').onclick = () => {
-                    localStorage.removeItem('lastSpreadsheet');
-                    localStorage.removeItem('lastSpreadsheetName');
-                    restoreDiv.remove();
-                    log('Cache limpo.');
-                };
-            }
-        }
-    }, 500);
-
     log('Sistema MixVision inicializado com sucesso!');
 }
 
-// --- Initialize App ---
+// Inicializar Firebase ao carregar
 document.addEventListener('DOMContentLoaded', function () {
-    // Inicializar Firebase
     initFirebase();
 
-    // Se já estiver no dashboard, inicializar
     if (document.getElementById('dashboard-screen')?.classList.contains('active')) {
         setTimeout(() => {
             if (typeof initializeApp === 'function') {
@@ -1238,9 +1635,13 @@ document.addEventListener('DOMContentLoaded', function () {
 window.mixLogin = mixLogin;
 window.mixLogout = mixLogout;
 window.mixCreateUser = mixCreateUser;
+window.showAddSpreadsheetModal = showAddSpreadsheetModal;
+window.addNewSpreadsheet = addNewSpreadsheet;
+window.deleteSpreadsheet = deleteSpreadsheet;
+window.selectSpreadsheet = selectSpreadsheet;
 window.showScreen = showScreen;
 window.showLoading = showLoading;
 window.hideLoading = hideLoading;
-
-// Funções originais para compatibilidade
 window.logout = mixLogout;
+window.selectCategory = selectCategory;
+window.filterSpreadsheets = filterSpreadsheets;
