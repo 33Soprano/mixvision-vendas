@@ -87,29 +87,6 @@
             }
         }
 
-        .admin-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .user-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .token-display {
-            font-family: monospace;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 5px 10px;
-            border-radius: 5px;
-        }
-
         /* Loading Overlay */
         .loading-overlay {
             position: fixed;
@@ -126,154 +103,150 @@
             backdrop-filter: blur(10px);
         }
 
-        /* Modal Styles */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15, 23, 42, 0.95);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            backdrop-filter: blur(10px);
-            padding: 20px;
-        }
-
-        .modal-content {
-            background: var(--bg-card);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-xl);
-            width: 100%;
-            max-width: 800px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-body {
-            padding: 24px;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
+        .text-secondary {
             color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 18px;
-            padding: 8px;
-            border-radius: 50%;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
-        .modal-close:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
+        .mt-4 {
+            margin-top: 16px;
         }
 
-        /* Responsividade */
-        @media (max-width: 768px) {
-            .admin-container {
-                padding: 10px;
-            }
+        .mb-4 {
+            margin-bottom: 16px;
+        }
 
-            .user-item {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 10px;
-            }
+        .mr-2 {
+            margin-right: 8px;
+        }
+
+        .text-xs {
+            font-size: 12px;
+        }
+
+        .font-semibold {
+            font-weight: 600;
+        }
+
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 
 <body>
+    <!-- Loading Overlay Global -->
+    <div id="global-loading" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p class="text-secondary mt-4" id="loading-message">Processando...</p>
+    </div>
+
+    <!-- Toast Message -->
+    <div id="toast-message" class="toast-message"></div>
+
     <!-- TELA DE LOGIN -->
     <div id="login-screen" class="screen active">
         <div class="login-container">
             <div class="login-card">
                 <div class="login-logo">
-                    <h1><i class="fas fa-chart-network"></i> MixVision</h1>
-                    <p>Dashboard de Oportunidades Comerciais</p>
+                    <h1>MixVision</h1>
+                    <p>Acesse com seu token de vendedor</p>
                 </div>
 
-                <div class="form-group">
-                    <label>Token de Acesso</label>
-                    <input type="password" id="token-input" class="form-control"
-                        placeholder="Digite seu token de acesso..." autocomplete="off">
+                <div class="login-steps">
+                    <div class="step-item">
+                        <div class="step-number">1</div>
+                        <span>Digite seu token</span>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">2</div>
+                        <span>Escolha uma planilha</span>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-number">3</div>
+                        <span>Veja suas oportunidades</span>
+                    </div>
                 </div>
 
-                <button class="btn-login" onclick="mixLogin()" id="login-btn">
-                    <i class="fas fa-sign-in-alt"></i> Acessar Dashboard
-                </button>
+                <form class="login-form">
+                    <div class="form-group">
+                        <label for="token-input">Seu Token</label>
+                        <input type="password" id="token-input" class="form-control" placeholder="Ex: ABC123XYZ"
+                            maxlength="20" autocomplete="off">
+                    </div>
+                    <button type="submit" id="login-btn" class="btn-login btn-primary">
+                        <i class="fas fa-arrow-right"></i>
+                        Acessar Dashboard
+                    </button>
+                </form>
 
-                <div class="error-msg" id="error-msg">
+                <div id="error-msg" class="error-msg">
                     <i class="fas fa-exclamation-circle"></i> Token inválido ou expirado!
                 </div>
 
-                <div class="admin-note">
-                    <i class="fas fa-info-circle"></i>
-                    <strong>Token do Administrador:</strong> admin-123
-                </div>
-
                 <div class="footer-note">
-                    <i class="fas fa-shield-alt"></i> Sistema Online | v3.2 (OneDrive)
+                    <i class="fas fa-info-circle"></i>
+                    Token admin: <strong>admin-123</strong>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- TELA DO ADMIN -->
+    <!-- DASHBOARD ADMIN -->
     <div id="admin-screen" class="screen">
-        <div class="app-header">
-            <div>
-                <h1><i class="fas fa-user-shield"></i> Painel Administrativo</h1>
-                <p class="subtitle">Gerenciamento de Vendedores e Planilhas</p>
-            </div>
-            <button class="btn-primary btn-logout" onclick="mixLogout()">
-                <i class="fas fa-sign-out-alt"></i> Sair
-            </button>
-        </div>
+        <div class="app-container">
+            <header class="app-header">
+                <div class="header-left">
+                    <h1>
+                        <i class="fas fa-user-shield"></i>
+                        Painel Administrativo
+                    </h1>
+                    <p class="subtitle">Gerenciamento de Vendedores e Planilhas</p>
+                </div>
+                <div class="header-right">
+                    <div class="user-welcome">
+                        <div class="user-avatar" id="user-avatar">A</div>
+                        <div>
+                            <div id="user-name" class="user-name">Administrador</div>
+                            <div id="user-role" class="user-role">ADMIN</div>
+                        </div>
+                    </div>
+                    <button onclick="mixLogout()" class="btn-logout btn-primary">
+                        <i class="fas fa-sign-out-alt"></i> Sair
+                    </button>
+                </div>
+            </header>
 
-        <div class="admin-container">
-            <!-- Card: Cadastrar Vendedor -->
+            <!-- ADMIN: Cadastrar Vendedor -->
             <div class="card">
-                <h3><i class="fas fa-user-plus"></i> Cadastrar Novo Vendedor</h3>
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <input type="text" id="new-user-name" class="form-control" placeholder="Nome do Vendedor"
-                        style="flex: 1;">
-                    <button class="btn-primary" onclick="mixCreateUser()" id="create-user-btn">
+                <div class="card-header">
+                    <h3><i class="fas fa-user-plus"></i> Cadastrar Novo Vendedor</h3>
+                    <p>Crie tokens para novos vendedores</p>
+                </div>
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label for="new-user-name">Nome do Vendedor</label>
+                        <input type="text" id="new-user-name" class="form-control" placeholder="Ex: João Silva">
+                    </div>
+                    <button id="create-user-btn" onclick="mixCreateUser()" class="btn-primary mt-4">
                         <i class="fas fa-plus"></i> Gerar Token
                     </button>
                 </div>
             </div>
 
-            <!-- Card: Gerenciar Planilhas -->
+            <!-- ADMIN: Gerenciar Planilhas -->
             <div class="card">
-                <h3><i class="fas fa-layer-group"></i> Gerenciar Planilhas</h3>
-                <p class="text-secondary mb-4">Gerencie múltiplas planilhas por categoria.</p>
+                <div class="card-header">
+                    <h3><i class="fas fa-layer-group"></i> Gerenciar Planilhas</h3>
+                    <p>Gerencie múltiplas planilhas por categoria</p>
+                </div>
 
-                <div class="flex flex-col gap-4">
-                    <button class="btn-primary" onclick="showAddSpreadsheetModal()">
+                <div class="spreadsheet-selector-header">
+                    <button onclick="showAddSpreadsheetModal()" class="btn-primary">
                         <i class="fas fa-plus-circle mr-2"></i> Adicionar Planilha
                     </button>
                 </div>
 
-                <div id="spreadsheets-list" class="mt-6 space-y-4">
-                    <!-- Lista será carregada dinamicamente -->
+                <div id="spreadsheets-list" class="spreadsheet-grid mt-6">
                     <div class="loading-card p-8 text-center">
                         <div class="spinner"></div>
                         <p class="mt-4 text-secondary">Carregando planilhas...</p>
@@ -281,34 +254,212 @@
                 </div>
             </div>
 
-            <!-- Card: Vendedores Cadastrados -->
+            <!-- ADMIN: Vendedores Cadastrados -->
             <div class="card">
-                <h3><i class="fas fa-users"></i> Vendedores Cadastrados</h3>
-                <div id="users-container" class="loading">
-                    <div class="spinner"></div>
-                    <p>Carregando vendedores...</p>
+                <div class="card-header">
+                    <h3><i class="fas fa-users"></i> Vendedores Cadastrados</h3>
+                    <p>Lista de vendedores com seus tokens</p>
+                </div>
+                <div id="users-container" class="users-grid">
+                    <div class="loading-card p-8 text-center">
+                        <div class="spinner"></div>
+                        <p class="mt-4 text-secondary">Carregando vendedores...</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- TELA DO DASHBOARD -->
+    <!-- DASHBOARD VENDEDOR -->
     <div id="dashboard-screen" class="screen">
-        <div id="dashboard-content">
-            <div class="loading">
-                <div class="spinner"></div>
-                <p>Carregando dashboard...</p>
-            </div>
+        <div class="app-container">
+            <header class="app-header">
+                <div class="header-left">
+                    <h1>
+                        <i class="fas fa-chart-line"></i>
+                        MixVision Dashboard
+                    </h1>
+                    <p class="subtitle" id="spreadsheet-help">Selecione uma planilha para analisar oportunidades</p>
+                </div>
+                <div class="header-right">
+                    <div class="user-welcome" id="user-welcome">
+                        <div class="user-avatar" id="dashboard-user-avatar">V</div>
+                        <div>
+                            <div id="dashboard-user-name" class="user-name">Vendedor</div>
+                            <div id="dashboard-user-role" class="user-role">VENDEDOR</div>
+                        </div>
+                    </div>
+                    <button onclick="mixLogout()" class="btn-logout btn-primary">
+                        <i class="fas fa-sign-out-alt"></i> Sair
+                    </button>
+                </div>
+            </header>
+
+            <!-- SEÇÃO: Seleção de Planilha -->
+            <section id="spreadsheet-selector" class="card">
+                <div class="spreadsheet-selector-header">
+                    <div>
+                        <h3><i class="fas fa-file-alt mr-2"></i> Selecione a Planilha</h3>
+                        <p class="text-secondary">Escolha qual categoria de dados você quer analisar:</p>
+                    </div>
+                    <div class="category-filters" id="category-filters">
+                        <button class="category-filter-btn all active" onclick="filterSpreadsheets('all')">
+                            <i class="fas fa-th"></i> Todas
+                        </button>
+                        <button class="category-filter-btn mercearia" onclick="filterSpreadsheets('mercearia')">
+                            <i class="fas fa-store"></i> Mercearia
+                        </button>
+                        <button class="category-filter-btn limpeza" onclick="filterSpreadsheets('limpeza')">
+                            <i class="fas fa-broom"></i> Limpeza
+                        </button>
+                        <button class="category-filter-btn mdias" onclick="filterSpreadsheets('mdias')">
+                            <i class="fas fa-calendar-day"></i> M Dias
+                        </button>
+                        <button class="category-filter-btn saudaveis" onclick="filterSpreadsheets('saudaveis')">
+                            <i class="fas fa-apple-alt"></i> Saudáveis
+                        </button>
+                    </div>
+                </div>
+
+                <div class="spreadsheet-grid" id="spreadsheet-cards">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <h4>Aguarde carregamento</h4>
+                        <p>Carregando planilhas do sistema...</p>
+                    </div>
+                </div>
+
+                <div id="no-spreadsheets" class="hidden text-center py-12">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <h4>Nenhuma planilha disponível</h4>
+                    <p>Aguarde o administrador adicionar planilhas.</p>
+                </div>
+            </section>
+
+            <!-- SEÇÃO: Dados da Planilha Selecionada -->
+            <section id="data-section" class="card hidden">
+                <div id="selected-spreadsheet-header"></div>
+
+                <!-- Status e Estatísticas -->
+                <div id="data-status-area">
+                    <div class="stats-grid mb-8">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-consultants">0</div>
+                            <div class="stat-label">Consultores</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-clients">0</div>
+                            <div class="stat-label">Clientes</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-products">0</div>
+                            <div class="stat-label">Produtos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-opportunities">0</div>
+                            <div class="stat-label">Oportunidades</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros e Análise -->
+                <section id="filters-section" class="hidden">
+                    <div class="filters-grid">
+                        <div class="form-group">
+                            <label><i class="fas fa-user-tie mr-2"></i>Consultor</label>
+                            <select id="consultant-select" class="form-control">
+                                <option value="">Selecionar consultor...</option>
+                            </select>
+                        </div>
+                        <div id="route-group" class="form-group">
+                            <label><i class="fas fa-route mr-2"></i>Rota</label>
+                            <select id="route-select" class="form-control" disabled>
+                                <option value="">Selecione primeiro o consultor</option>
+                            </select>
+                        </div>
+                        <div id="client-group" class="form-group">
+                            <label><i class="fas fa-building mr-2"></i>Cliente</label>
+                            <select id="client-select" class="form-control" disabled>
+                                <option value="">Selecione primeiro a rota</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Abas -->
+                    <div class="tabs-container">
+                        <button id="tab-opportunities" class="tab-button active">
+                            <i class="fas fa-bullseye mr-2"></i>Oportunidades
+                        </button>
+                        <button id="tab-sold" class="tab-button">
+                            <i class="fas fa-check-circle mr-2"></i>Já Vendidos
+                        </button>
+                    </div>
+
+                    <!-- Contador -->
+                    <div class="opportunity-count">
+                        <div>
+                            <div class="count-label" id="results-title">OPORTUNIDADES DE VENDA</div>
+                            <div class="count-display" id="opportunity-count-text">0 itens</div>
+                        </div>
+                        <div class="badge-container">
+                            <div class="badge badge-profile" id="profile-badge">Perfil: N/D</div>
+                            <button id="btn-export" class="btn-primary" style="display: none;">
+                                <i class="fas fa-download"></i> Exportar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Oportunidades -->
+                    <div id="opportunities-list" class="opportunity-grid"></div>
+
+                    <!-- Estado Vazio -->
+                    <div id="empty-state" class="empty-state hidden">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <h4>Nenhum dado para exibir</h4>
+                        <p>Selecione um consultor, rota e cliente para visualizar as oportunidades</p>
+                    </div>
+                </section>
+
+                <!-- Mensagem de Carregamento -->
+                <div id="data-loading" class="text-center py-12">
+                    <div class="spinner"></div>
+                    <p class="text-secondary mt-4">Carregando dados da planilha...</p>
+                </div>
+
+                <!-- Mensagem de Erro -->
+                <div id="data-error" class="hidden error-state">
+                    <h4><i class="fas fa-exclamation-triangle mr-2"></i>Erro ao carregar dados</h4>
+                    <p id="error-message">Não foi possível carregar a planilha selecionada.</p>
+                    <button id="btn-retry" class="btn-primary mt-4">
+                        <i class="fas fa-redo mr-2"></i>Tentar Novamente
+                    </button>
+                </div>
+            </section>
+
+            <!-- Console do Sistema -->
+            <section class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-terminal"></i> Console do Sistema</h3>
+                    <p>Logs de debug e informações do sistema</p>
+                </div>
+                <div class="console-controls">
+                    <button id="btn-clear-log" class="btn-primary">
+                        <i class="fas fa-broom"></i> Limpar Logs
+                    </button>
+                </div>
+                <div class="log-container">
+                    <pre id="debug-log"></pre>
+                </div>
+            </section>
         </div>
     </div>
 
-    <!-- Loading Overlay Global -->
-    <div id="global-loading" class="loading-overlay hidden">
-        <div class="spinner"></div>
-        <p class="text-secondary mt-4" id="loading-message">Processando...</p>
-    </div>
-
-    <!-- Script principal -->
     <script src="script.js"></script>
 
     <script>
@@ -332,7 +483,7 @@
             if (errorDiv) errorDiv.style.display = 'none';
         }
 
-        // Permitir Enter no login
+        // Login com Enter
         document.getElementById('token-input')?.addEventListener('keypress', function (e) {
             if (e.key === 'Enter') mixLogin();
         });
@@ -341,6 +492,12 @@
         document.addEventListener('DOMContentLoaded', function () {
             const tokenInput = document.getElementById('token-input');
             if (tokenInput) tokenInput.focus();
+        });
+
+        // Form submit
+        document.querySelector('.login-form')?.addEventListener('submit', function (e) {
+            e.preventDefault();
+            mixLogin();
         });
     </script>
 </body>
