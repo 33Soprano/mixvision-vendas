@@ -115,6 +115,7 @@ function checkSavedLogin() {
             currentMixUser = JSON.parse(savedUser);
             if (currentMixUser.role === 'admin') {
                 showScreen('admin-screen');
+                updateAdminWelcome();
                 mixLoadUsers();
                 loadAdminSpreadsheets();
             } else {
@@ -124,6 +125,14 @@ function checkSavedLogin() {
             localStorage.removeItem('mixvision_user');
         }
     }
+}
+
+function updateAdminWelcome() {
+    const avatar = document.getElementById('user-avatar');
+    const name = document.getElementById('user-name');
+
+    if (avatar) avatar.textContent = currentMixUser?.name?.[0]?.toUpperCase() || 'A';
+    if (name) name.textContent = currentMixUser?.name || 'Administrador';
 }
 
 // ===== AUTENTICAÇÃO =====
@@ -155,8 +164,10 @@ async function mixLogin() {
 
             localStorage.setItem('mixvision_user', JSON.stringify(currentMixUser));
             showScreen('admin-screen');
+            updateAdminWelcome();
             mixLoadUsers();
             loadAdminSpreadsheets();
+            showToast(`Olá, ${currentMixUser.name}!`, 'success');
             return;
         }
 
@@ -184,17 +195,12 @@ async function mixLogin() {
             localStorage.setItem('userRole', currentMixUser.role);
             localStorage.setItem('authToken', currentMixUser.token);
 
-            if (currentMixUser.role === 'admin') {
-                showScreen('admin-screen');
-                mixLoadUsers();
-                loadAdminSpreadsheets();
-            } else {
-                loadDashboardScreen();
-            }
+            showToast(`Olá, ${currentMixUser.name}!`, 'success');
+            loadDashboardScreen();
         } else {
             showError('Token inválido ou usuário não encontrado!');
             if (loginBtn) {
-                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Acessar Dashboard';
+                loginBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Acessar Dashboard';
                 loginBtn.disabled = false;
             }
         }
@@ -202,19 +208,20 @@ async function mixLogin() {
         console.error('Erro:', error);
         showError('Erro de conexão com o servidor');
         if (loginBtn) {
-            loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Acessar Dashboard';
+            loginBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Acessar Dashboard';
             loginBtn.disabled = false;
         }
     }
 }
 
+// ===== USUÁRIOS ADMIN =====
 async function mixCreateUser() {
     const nameInput = document.getElementById('new-user-name');
     const name = nameInput ? nameInput.value.trim() : '';
     const createBtn = document.getElementById('create-user-btn');
 
     if (!name) {
-        alert('Digite um nome para o vendedor!');
+        showToast('Digite um nome para o vendedor!', 'error');
         return;
     }
 
@@ -237,13 +244,14 @@ async function mixCreateUser() {
             createdAt: new Date().toISOString()
         });
 
-        alert(`✅ Vendedor criado com sucesso!\n\nNome: ${name}\nToken: ${token}\n\nCopie este token e entregue ao vendedor.`);
+        showToast(`Vendedor "${name}" criado!\nToken: ${token}`, 'success');
+        navigator.clipboard.writeText(token);
 
         if (nameInput) nameInput.value = '';
         mixLoadUsers();
     } catch (error) {
         console.error('Erro ao criar usuário:', error);
-        alert('Erro ao criar vendedor. Tente novamente.');
+        showToast('Erro ao criar vendedor. Tente novamente.', 'error');
     } finally {
         if (createBtn) {
             createBtn.innerHTML = '<i class="fas fa-plus"></i> Gerar Token';
@@ -270,31 +278,49 @@ async function mixLoadUsers() {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            container.innerHTML = '<p>Nenhum vendedor cadastrado ainda.</p>';
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h4>Nenhum vendedor</h4>
+                    <p>Crie o primeiro vendedor acima</p>
+                </div>
+            `;
             return;
         }
 
-        let html = '';
+        let html = '<div class="users-grid">';
         querySnapshot.forEach(doc => {
             const user = doc.data();
             const date = user.createdAt ? new Date(user.createdAt) : new Date();
             html += `
-                <div class="user-item">
-                    <div>
-                        <strong>${user.name}</strong><br>
-                        <small style="color: #94a3b8; font-size: 12px;">
-                            Criado em: ${date.toLocaleDateString('pt-BR')}
-                        </small>
+                <div class="user-card">
+                    <div class="user-info">
+                        <div class="user-avatar">${user.name[0]?.toUpperCase()}</div>
+                        <div>
+                            <h4>${user.name}</h4>
+                            <small>${date.toLocaleDateString('pt-BR')}</small>
+                        </div>
                     </div>
-                    <div class="token-display">${user.token}</div>
+                    <div class="user-token" onclick="navigator.clipboard.writeText('${user.token}');showToast('Token copiado!')">
+                        ${user.token}
+                    </div>
                 </div>
             `;
         });
+        html += '</div>';
 
         container.innerHTML = html;
+
     } catch (error) {
         console.error('Erro ao carregar usuários:', error);
-        container.innerHTML = '<p style="color: #ef4444;">Erro ao carregar vendedores.</p>';
+        container.innerHTML = `
+            <div class="error-state">
+                <h4><i class="fas fa-exclamation-triangle"></i> Erro</h4>
+                <p>${error.message}</p>
+            </div>
+        `;
     }
 }
 
@@ -310,9 +336,10 @@ function mixLogout() {
     showScreen('login-screen');
     const tokenInput = document.getElementById('token-input');
     if (tokenInput) tokenInput.value = '';
+    showToast('Logout realizado', 'success');
 }
 
-// ===== FUNÇÕES AUXILIARES =====
+// ===== UTILITÁRIOS =====
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const screen = document.getElementById(screenId);
@@ -330,6 +357,15 @@ function showError(message) {
 function hideError() {
     const errorDiv = document.getElementById('error-msg');
     if (errorDiv) errorDiv.style.display = 'none';
+}
+
+function showToast(msg, type = 'success') {
+    const toast = document.getElementById('toast-message');
+    if (!toast) return;
+
+    toast.textContent = msg;
+    toast.className = `toast-message ${type} show`;
+    setTimeout(() => toast.classList.remove('show'), 4000);
 }
 
 function showLoading(message = "Processando...") {
@@ -430,7 +466,7 @@ function showAddSpreadsheetModal() {
                                   placeholder="Descreva o conteúdo desta planilha..."></textarea>
                     </div>
                     
-                    <div class="flex justify-end gap-3 mt-6">
+                    <div class="modal-footer">
                         <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">
                             Cancelar
                         </button>
@@ -446,7 +482,6 @@ function showAddSpreadsheetModal() {
     document.body.appendChild(modal);
 }
 
-// Função para selecionar categoria no modal
 function selectCategory(category) {
     // Remover active de todos os botões
     document.querySelectorAll('.modal-category-btn').forEach(btn => {
@@ -473,12 +508,12 @@ async function addNewSpreadsheet() {
     const description = descriptionInput ? descriptionInput.value.trim() : '';
 
     if (!originalLink) {
-        alert('Por favor, cole o link do OneDrive!');
+        showToast('Por favor, cole o link do OneDrive!', 'error');
         return;
     }
 
     if (!name) {
-        alert('Por favor, informe um nome para a planilha!');
+        showToast('Por favor, informe um nome para a planilha!', 'error');
         return;
     }
 
@@ -510,7 +545,7 @@ async function addNewSpreadsheet() {
         });
 
         hideLoading();
-        alert('✅ Planilha adicionada com sucesso!');
+        showToast('✅ Planilha adicionada com sucesso!');
 
         // Fechar modal e recarregar lista
         document.querySelector('.modal-overlay')?.remove();
@@ -518,7 +553,7 @@ async function addNewSpreadsheet() {
 
     } catch (error) {
         hideLoading();
-        alert('❌ Erro ao salvar planilha: ' + error.message);
+        showToast('❌ Erro ao salvar planilha: ' + error.message, 'error');
     }
 }
 
@@ -536,34 +571,22 @@ function generateSpreadsheetCard(doc, data, isAdmin = false) {
 
     if (isAdmin) {
         return `
-            <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-3">
-                        <div class="spreadsheet-icon ${category}" style="width: 40px; height: 40px; font-size: 18px;">
-                            <i class="fas ${config.icon}"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-semibold">${data.name}</h4>
-                            <p class="text-secondary text-sm">${data.fileName}</p>
-                        </div>
-                    </div>
-                    <button onclick="deleteSpreadsheet('${doc.id}')" 
-                            class="text-red-400 hover:text-red-300 p-2">
-                        <i class="fas fa-trash"></i>
-                    </button>
+            <div class="spreadsheet-card ${category}" data-id="${doc.id}">
+                <div class="spreadsheet-icon">
+                    <i class="fas ${config.icon}"></i>
                 </div>
-                
-                <p class="text-sm text-secondary mb-3">${data.description || config.description}</p>
-                
-                <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
+                <h4>${data.name}</h4>
+                <p class="spreadsheet-desc">${data.description || config.description}</p>
+                <div class="spreadsheet-meta">
                     <span class="category-badge ${category}">
                         <i class="fas ${config.icon}"></i>
                         ${config.name}
                     </span>
-                    <span class="text-xs text-secondary">
-                        <i class="fas fa-calendar-alt mr-1"></i>
-                        ${date.toLocaleDateString('pt-BR')}
-                    </span>
+                    <span>${date.toLocaleDateString('pt-BR')}</span>
+                    <button onclick="deleteSpreadsheet('${doc.id}')" 
+                            class="delete-btn">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
         `;
@@ -581,10 +604,7 @@ function generateSpreadsheetCard(doc, data, isAdmin = false) {
                         <i class="fas ${config.icon}"></i>
                         ${config.name}
                     </span>
-                    <span>
-                        <i class="fas fa-calendar-alt mr-1"></i>
-                        ${date.toLocaleDateString('pt-BR')}
-                    </span>
+                    <span>${date.toLocaleDateString('pt-BR')}</span>
                 </div>
             </div>
         `;
@@ -613,14 +633,14 @@ async function loadAdminSpreadsheets() {
                     <div class="empty-state-icon">
                         <i class="fas fa-folder-open"></i>
                     </div>
-                    <h4 class="text-xl font-semibold mt-4">Nenhuma planilha cadastrada</h4>
-                    <p class="text-secondary mt-2">Clique em "Adicionar Planilha" para começar.</p>
+                    <h4>Nenhuma planilha cadastrada</h4>
+                    <p>Clique em "Adicionar Planilha" para começar.</p>
                 </div>
             `;
             return;
         }
 
-        let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+        let html = '<div class="spreadsheet-grid">';
         snapshot.forEach(doc => {
             const data = doc.data();
             html += generateSpreadsheetCard(doc, data, true);
@@ -632,8 +652,9 @@ async function loadAdminSpreadsheets() {
     } catch (error) {
         console.error('Erro ao carregar planilhas:', error);
         container.innerHTML = `
-            <div class="p-4 bg-red-900/30 border border-red-500/30 rounded-lg">
-                <p class="text-red-300">Erro ao carregar planilhas: ${error.message}</p>
+            <div class="error-state">
+                <h4><i class="fas fa-exclamation-triangle"></i> Erro</h4>
+                <p>${error.message}</p>
             </div>
         `;
     }
@@ -652,214 +673,42 @@ async function deleteSpreadsheet(spreadsheetId) {
         await deleteDoc(doc(firebaseDb, 'spreadsheets', spreadsheetId));
 
         hideLoading();
-        alert('✅ Planilha excluída com sucesso!');
+        showToast('✅ Planilha excluída com sucesso!');
 
         loadAdminSpreadsheets();
 
     } catch (error) {
         hideLoading();
-        alert('❌ Erro ao excluir planilha: ' + error.message);
+        showToast('❌ Erro ao excluir planilha: ' + error.message, 'error');
     }
 }
 
 // ===== DASHBOARD: SELEÇÃO DE PLANILHAS =====
 function loadDashboardScreen() {
-    const dashboardContent = document.getElementById('dashboard-content');
-    const userName = currentMixUser?.name || localStorage.getItem('userName') || 'Vendedor';
+    const userName = currentMixUser?.name || 'Vendedor';
 
-    dashboardContent.innerHTML = `
-        <div class="app-container">
-            <header class="app-header">
-                <div>
-                    <h1><i class="fas fa-chart-network mr-2"></i>MixVision</h1>
-                    <p class="subtitle">Dashboard Inteligente de Oportunidades</p>
-                </div>
+    // Atualizar informações do usuário
+    const avatar = document.getElementById('dashboard-user-avatar');
+    const nameEl = document.getElementById('dashboard-user-name');
 
-                <div class="flex items-center gap-4">
-                    <div class="user-welcome">
-                        <div class="user-avatar">
-                            <i class="fas fa-user"></i>
-                        </div>
-                        <div>
-                            <div class="font-medium" id="current-user">${userName}</div>
-                            <div class="text-xs text-secondary">Consultor</div>
-                        </div>
-                    </div>
-                    <button class="btn-primary btn-logout" onclick="mixLogout()">
-                        <i class="fas fa-sign-out-alt"></i> Sair
-                    </button>
-                </div>
-            </header>
-
-            <!-- SEÇÃO: Seleção de Planilha -->
-            <section id="spreadsheet-selector" class="card">
-                <div class="spreadsheet-selector-header">
-                    <div>
-                        <h3><i class="fas fa-file-alt mr-2"></i> Selecione a Planilha</h3>
-                        <p class="text-secondary">Escolha qual categoria de dados você quer analisar:</p>
-                    </div>
-                    <div class="category-filters">
-                        <button class="category-filter-btn all active" onclick="filterSpreadsheets('all')">
-                            Todas
-                        </button>
-                        ${Object.entries(CATEGORY_CONFIG).map(([key, config]) => `
-                            <button class="category-filter-btn ${key}" onclick="filterSpreadsheets('${key}')">
-                                <i class="fas ${config.icon} mr-2"></i>
-                                ${config.name}
-                            </button>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <div class="spreadsheet-grid" id="spreadsheet-cards">
-                    <div class="loading-card p-8 text-center">
-                        <div class="spinner"></div>
-                        <p class="mt-4 text-secondary">Carregando planilhas...</p>
-                    </div>
-                </div>
-                
-                <div id="no-spreadsheets" class="hidden text-center py-12">
-                    <div class="empty-state-icon">
-                        <i class="fas fa-folder-open"></i>
-                    </div>
-                    <h4 class="text-xl font-semibold mt-4">Nenhuma planilha disponível</h4>
-                    <p class="text-secondary mt-2">Aguarde o administrador adicionar planilhas.</p>
-                </div>
-            </section>
-
-            <!-- SEÇÃO: Dados da Planilha Selecionada -->
-            <section id="data-section" class="card hidden">
-                <!-- Cabeçalho dinâmico será inserido aqui -->
-                <div id="selected-spreadsheet-header"></div>
-                
-                <!-- Status e Estatísticas -->
-                <div id="data-status-area">
-                    <div class="stats-grid mb-8">
-                        <div class="stat-card">
-                            <div class="stat-value" id="stat-consultants">0</div>
-                            <div class="stat-label">Consultores</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="stat-clients">0</div>
-                            <div class="stat-label">Clientes</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="stat-products">0</div>
-                            <div class="stat-label">Produtos</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="stat-opportunities">0</div>
-                            <div class="stat-label">Oportunidades</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Filtros e Análise -->
-                <section id="filters-section" class="hidden">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div class="form-group">
-                            <label><i class="fas fa-user-tie mr-2"></i>Consultor</label>
-                            <select id="consultant-select" class="form-control">
-                                <option value="">Selecionar consultor...</option>
-                            </select>
-                        </div>
-                        <div id="route-group" class="form-group">
-                            <label><i class="fas fa-route mr-2"></i>Rota</label>
-                            <select id="route-select" class="form-control" disabled>
-                                <option value="">Selecione primeiro o consultor</option>
-                            </select>
-                        </div>
-                        <div id="client-group" class="form-group">
-                            <label><i class="fas fa-building mr-2"></i>Cliente</label>
-                            <select id="client-select" class="form-control" disabled>
-                                <option value="">Selecione primeiro a rota</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <!-- Abas -->
-                    <div class="tabs-container">
-                        <button id="tab-opportunities" class="tab-button active">
-                            <i class="fas fa-bullseye mr-2"></i>Oportunidades
-                        </button>
-                        <button id="tab-sold" class="tab-button">
-                            <i class="fas fa-check-circle mr-2"></i>Já Vendidos
-                        </button>
-                    </div>
-                    
-                    <!-- Contador -->
-                    <div class="opportunity-count mb-6">
-                        <div>
-                            <div class="count-label" id="results-title">OPORTUNIDADES DE VENDA</div>
-                            <div class="count-display" id="opportunity-count-text">0 itens</div>
-                        </div>
-                        <div class="flex items-center gap-4">
-                            <div class="badge badge-profile" id="profile-badge">Perfil: N/D</div>
-                            <button id="btn-export" class="btn-primary" style="display: none;">
-                                <i class="fas fa-download"></i> Exportar
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Lista de Oportunidades -->
-                    <div id="opportunities-list" class="opportunity-grid"></div>
-                    
-                    <!-- Estado Vazio -->
-                    <div id="empty-state" class="empty-state hidden">
-                        <div class="empty-state-icon">
-                            <i class="fas fa-chart-bar"></i>
-                        </div>
-                        <h4 class="text-xl font-semibold mb-2">Nenhum dado para exibir</h4>
-                        <p class="text-secondary">Selecione um consultor, rota e cliente para visualizar as oportunidades</p>
-                    </div>
-                </section>
-                
-                <!-- Mensagem de Carregamento -->
-                <div id="data-loading" class="text-center py-12">
-                    <div class="spinner"></div>
-                    <p class="text-secondary mt-4">Carregando dados da planilha...</p>
-                </div>
-                
-                <!-- Mensagem de Erro -->
-                <div id="data-error" class="hidden p-6 bg-red-900/30 border border-red-500/30 rounded-lg">
-                    <h4 class="font-semibold text-red-300 mb-3">
-                        <i class="fas fa-exclamation-triangle mr-2"></i>Erro ao carregar dados
-                    </h4>
-                    <p id="error-message" class="text-sm mb-4">Não foi possível carregar a planilha selecionada.</p>
-                    <button id="btn-retry" class="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded text-sm">
-                        <i class="fas fa-redo mr-1"></i>Tentar Novamente
-                    </button>
-                </div>
-            </section>
-
-            <!-- Console do Sistema -->
-            <section class="card">
-                <div class="flex justify-between items-center mb-4">
-                    <h3><i class="fas fa-terminal"></i> Console do Sistema</h3>
-                    <button id="btn-clear-log" class="btn-primary" style="padding: 8px 16px; font-size: 12px;">
-                        <i class="fas fa-broom"></i> Limpar Logs
-                    </button>
-                </div>
-                <div class="log-container">
-                    <pre id="debug-log"></pre>
-                </div>
-            </section>
-        </div>
-    `;
+    if (avatar) avatar.textContent = userName[0]?.toUpperCase() || 'V';
+    if (nameEl) nameEl.textContent = userName;
 
     showScreen('dashboard-screen');
 
+    // Carregar planilhas disponíveis
     setTimeout(() => {
-        initializeApp();
         loadAvailableSpreadsheets();
     }, 100);
 }
 
-// ===== CARREGAR PLANILHAS DISPONÍVEIS =====
 async function loadAvailableSpreadsheets() {
-    try {
-        showLoading('Carregando planilhas disponíveis...');
+    const container = document.getElementById('spreadsheet-cards');
+    const noSpreadsheets = document.getElementById('no-spreadsheets');
 
+    if (!container) return;
+
+    try {
         const { collection, query, orderBy, getDocs } = await import(
             "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
         );
@@ -871,38 +720,29 @@ async function loadAvailableSpreadsheets() {
 
         const snapshot = await getDocs(q);
 
-        const cardsContainer = document.getElementById('spreadsheet-cards');
-        const noSpreadsheets = document.getElementById('no-spreadsheets');
-
         if (snapshot.empty) {
-            cardsContainer.innerHTML = '';
-            noSpreadsheets.classList.remove('hidden');
-            hideLoading();
+            container.innerHTML = '';
+            if (noSpreadsheets) noSpreadsheets.classList.remove('hidden');
             return;
         }
 
         // Gerar cartões para cada planilha
-        let cardsHTML = '<div class="spreadsheet-grid">';
+        let html = '<div class="spreadsheet-grid">';
         snapshot.forEach(doc => {
             const data = doc.data();
-            cardsHTML += generateSpreadsheetCard(doc, data, false);
+            html += generateSpreadsheetCard(doc, data, false);
         });
-        cardsHTML += '</div>';
+        html += '</div>';
 
-        cardsContainer.innerHTML = cardsHTML;
-        noSpreadsheets.classList.add('hidden');
-        hideLoading();
+        container.innerHTML = html;
+        if (noSpreadsheets) noSpreadsheets.classList.add('hidden');
 
     } catch (error) {
         console.error('Erro ao carregar planilhas:', error);
-        hideLoading();
-        document.getElementById('spreadsheet-cards').innerHTML = `
-            <div class="col-span-3 p-6 text-center">
-                <div class="text-red-400 mb-3">
-                    <i class="fas fa-exclamation-triangle text-3xl"></i>
-                </div>
-                <h4 class="font-semibold mb-2">Erro ao carregar planilhas</h4>
-                <p class="text-secondary text-sm">${error.message}</p>
+        container.innerHTML = `
+            <div class="error-state">
+                <h4><i class="fas fa-exclamation-triangle"></i> Erro</h4>
+                <p>${error.message}</p>
                 <button onclick="loadAvailableSpreadsheets()" class="btn-primary mt-4">
                     <i class="fas fa-redo mr-2"></i>Tentar Novamente
                 </button>
@@ -917,14 +757,14 @@ function filterSpreadsheets(category) {
     document.querySelectorAll('.category-filter-btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    document.querySelector(`.category-filter-btn.${category}`).classList.add('active');
+    const btn = document.querySelector(`.category-filter-btn.${category}`);
+    if (btn) btn.classList.add('active');
 
     // Filtrar cartões
     const cards = document.querySelectorAll('.spreadsheet-card');
     cards.forEach(card => {
         if (category === 'all' || card.classList.contains(category)) {
             card.style.display = 'block';
-            card.style.animation = 'slideInUp 0.4s ease-out';
         } else {
             card.style.display = 'none';
         }
@@ -937,8 +777,11 @@ async function selectSpreadsheet(spreadsheetId, spreadsheetName, downloadUrl) {
     currentSpreadsheetName = spreadsheetName;
 
     // Atualizar UI
-    document.getElementById('spreadsheet-selector').classList.add('hidden');
-    document.getElementById('data-section').classList.remove('hidden');
+    const selector = document.getElementById('spreadsheet-selector');
+    const dataSection = document.getElementById('data-section');
+
+    if (selector) selector.classList.add('hidden');
+    if (dataSection) dataSection.classList.remove('hidden');
 
     // Carregar dados da planilha para obter a categoria
     try {
@@ -959,20 +802,17 @@ async function selectSpreadsheet(spreadsheetId, spreadsheetName, downloadUrl) {
                     <div class="selected-spreadsheet-icon">
                         <i class="fas ${config.icon}"></i>
                     </div>
-                    <div style="flex: 1;">
-                        <h3 style="margin: 0 0 4px 0; font-size: 20px;">
-                            ${spreadsheetName}
-                        </h3>
-                        <p class="text-secondary" style="margin: 0; font-size: 14px;">
+                    <div>
+                        <h3>${spreadsheetName}</h3>
+                        <p class="text-secondary">
                             <span class="category-badge ${category}">
                                 <i class="fas ${config.icon}"></i>
                                 ${config.name}
                             </span>
                             • ${data.description || config.description}
-                            • Carregada em: ${new Date().toLocaleTimeString('pt-BR')}
                         </p>
                     </div>
-                    <div class="flex gap-3">
+                    <div class="spreadsheet-actions">
                         <button id="btn-change-spreadsheet" class="btn-secondary">
                             <i class="fas fa-exchange-alt mr-2"></i> Trocar Planilha
                         </button>
@@ -983,19 +823,27 @@ async function selectSpreadsheet(spreadsheetId, spreadsheetName, downloadUrl) {
                 </div>
             `;
 
-            document.getElementById('selected-spreadsheet-header').innerHTML = headerHTML;
+            const headerContainer = document.getElementById('selected-spreadsheet-header');
+            if (headerContainer) headerContainer.innerHTML = headerHTML;
 
             // Reatachar eventos
-            document.getElementById('btn-change-spreadsheet').addEventListener('click', () => {
-                document.getElementById('data-section').classList.add('hidden');
-                document.getElementById('spreadsheet-selector').classList.remove('hidden');
-                currentSpreadsheetId = null;
-                currentSpreadsheetName = null;
-            });
+            const changeBtn = document.getElementById('btn-change-spreadsheet');
+            const refreshBtn = document.getElementById('btn-refresh-data');
 
-            document.getElementById('btn-refresh-data').addEventListener('click', () => {
-                loadSelectedSpreadsheetFromId(spreadsheetId);
-            });
+            if (changeBtn) {
+                changeBtn.addEventListener('click', () => {
+                    if (dataSection) dataSection.classList.add('hidden');
+                    if (selector) selector.classList.remove('hidden');
+                    currentSpreadsheetId = null;
+                    currentSpreadsheetName = null;
+                });
+            }
+
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', () => {
+                    loadSelectedSpreadsheetFromId(spreadsheetId);
+                });
+            }
         }
     } catch (error) {
         console.error('Erro ao carregar informações da planilha:', error);
@@ -1029,7 +877,6 @@ async function loadSelectedSpreadsheet(downloadUrl) {
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
         processData(rows);
-
         hideDataLoading();
 
     } catch (error) {
@@ -1352,7 +1199,7 @@ function processData(data) {
     log(`Dados filtrados apenas para: ${currentConsultantName}`);
 
     if (Object.keys(hierarchy).length === 0) {
-        alert(`ATENÇÃO: Nenhum dado encontrado para o consultor "${currentConsultantName}". Verifique se o nome está exatamente igual na planilha.`);
+        showToast(`ATENÇÃO: Nenhum dado encontrado para o consultor "${currentConsultantName}". Verifique se o nome está exatamente igual na planilha.`, 'warning');
     }
 
     hideLoading();
@@ -1406,8 +1253,8 @@ function handleConsultantChange() {
     const routes = Object.keys(hierarchy[selected] || {}).sort();
 
     routeGroup.innerHTML = `
-        <label class="block text-sm font-medium text-gray-400 mb-2">Rota</label>
-        <select id="route-select" class="form-control w-full">
+        <label><i class="fas fa-route mr-2"></i>Rota</label>
+        <select id="route-select" class="form-control">
             <option value="">Selecione...</option>
             ${routes.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
         </select>
@@ -1433,8 +1280,8 @@ function handleRouteChange(consultant, route) {
     }
 
     clientGroup.innerHTML = `
-        <label class="block text-sm font-medium text-gray-400 mb-2">Cliente</label>
-        <select id="client-select" class="form-control w-full">
+        <label><i class="fas fa-building mr-2"></i>Cliente</label>
+        <select id="client-select" class="form-control">
             <option value="">Selecione...</option>
             ${clients.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
         </select>
@@ -1502,7 +1349,7 @@ function renderList() {
                 <div class="empty-state-icon">
                     ${currentTab === 'opportunities' ? '🎉' : '📊'}
                 </div>
-                <h4 class="text-xl font-semibold mb-2">
+                <h4>
                     ${currentTab === 'opportunities' ? 'Cliente já comprou todo o mix!' : 'Nenhum item vendido ainda.'}
                 </h4>
                 <p class="text-secondary">
@@ -1515,10 +1362,10 @@ function renderList() {
 
     items.forEach(prod => {
         const div = document.createElement('div');
-        div.className = 'opportunity-card group';
+        div.className = 'opportunity-card';
 
         const actionBtn = currentTab === 'opportunities'
-            ? `<button class="btn-primary opacity-0 group-hover:opacity-100 transition-opacity" style="padding: 6px 12px; font-size: 12px;" data-prod="${escapeHtml(prod)}">
+            ? `<button class="btn-primary" style="padding: 6px 12px; font-size: 12px;" data-prod="${escapeHtml(prod)}">
                 <i class="fas fa-copy mr-1"></i> Copiar
                </button>`
             : `<span class="text-green-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Vendido</span>`;
