@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MixVision | Dashboard de Vendas</title>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (para autenticação) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
@@ -30,6 +30,17 @@
         window.firebaseDb = db;
 
         console.log("✅ Firebase configurado!");
+    </script>
+
+    <!-- Supabase SDK (para planilhas) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Configuração do Supabase para planilhas
+        const supabaseUrl = 'https://llcewofzmpyczwfoljem.supabase.co';
+        const supabaseAnonKey = 'sb_publishable_NPgqokxNKRJ_nxIFY-zKuA_PTsrEvIQ';
+
+        window.supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+        console.log("✅ Supabase configurado para planilhas!");
     </script>
 
     <!-- SheetJS -->
@@ -249,7 +260,7 @@
                 <div id="spreadsheets-list" class="spreadsheet-grid mt-6">
                     <div class="loading-card p-8 text-center">
                         <div class="spinner"></div>
-                        <p class="mt-4 text-secondary">Carregando planilhas...</p>
+                        <p class="mt-4 text-secondary">Carregando planilhas do Supabase...</p>
                     </div>
                 </div>
             </div>
@@ -327,7 +338,7 @@
                             <i class="fas fa-file-excel"></i>
                         </div>
                         <h4>Aguarde carregamento</h4>
-                        <p>Carregando planilhas do sistema...</p>
+                        <p>Carregando planilhas do Supabase...</p>
                     </div>
                 </div>
 
@@ -442,7 +453,7 @@
                 </div>
             </section>
 
-            <!-- Console do Sistema -->
+            <!-- Console do Sistema COM BOTÃO DE TESTE -->
             <section class="card">
                 <div class="card-header">
                     <h3><i class="fas fa-terminal"></i> Console do Sistema</h3>
@@ -451,6 +462,13 @@
                 <div class="console-controls">
                     <button id="btn-clear-log" class="btn-primary">
                         <i class="fas fa-broom"></i> Limpar Logs
+                    </button>
+                    <!-- BOTÃO DE TESTE ADICIONADO AQUI -->
+                    <button id="btn-test-link" class="btn-primary" style="background: #3b82f6;">
+                        <i class="fas fa-vial"></i> Testar Link OneDrive
+                    </button>
+                    <button onclick="debugPlanilha()" class="btn-primary" style="background: #8b5cf6;">
+                        <i class="fas fa-bug"></i> Debug Planilha
                     </button>
                 </div>
                 <div class="log-container">
