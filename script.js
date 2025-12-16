@@ -1,13 +1,15 @@
 // ============================================
-// SISTEMA MIXVISION COM ONEDRIVE
+// SISTEMA MIXVISION - SUPABASE DIRETO (ATUALIZADO)
 // ============================================
 
 // Variáveis globais
 let currentMixUser = null;
 let firebaseDb = null;
-let currentSpreadsheet = null;
-let currentSpreadsheetName = null;
-let currentSpreadsheetId = null;
+let currentTableName = null;
+let currentTableDisplayName = null;
+
+// CONFIGURE AQUI O ID DO SEU PROJETO SUPABASE
+const SUPABASE_PROJECT_ID = 'llcewofzmpyczwfoljem'; // ← SEU PROJETO SUPABASE
 
 // Configuração das Categorias
 const CATEGORY_CONFIG = {
@@ -37,7 +39,193 @@ const CATEGORY_CONFIG = {
     }
 };
 
-// ===== INICIALIZAÇÃO FIREBASE =====
+// Tabelas sugeridas (para fallback)
+const SUGGESTED_TABLES = [
+    { name: 'Saudaveis V1', displayName: 'Saudaveis V1', category: 'saudaveis' },
+    { name: 'LIMPEZA E BAZAR', displayName: 'Limpeza e Bazar', category: 'limpeza' },
+    { name: 'M DIAS', displayName: 'M Dias', category: 'mdias' },
+    { name: 'MERCEARIA', displayName: 'Mercearia', category: 'mercearia' },
+
+    // Antigas (mantidas por segurança)
+    { name: 'mercearia', displayName: 'Mercearia', category: 'mercearia' },
+    { name: 'limpeza', displayName: 'Limpeza', category: 'limpeza' },
+    { name: 'mdias', displayName: 'M Dias', category: 'mdias' },
+    { name: 'saudaveis', displayName: 'Saudáveis', category: 'saudaveis' }
+];
+
+// ============================================
+// FUNÇÕES SUPABASE - CONSULTA DINÂMICA
+// ============================================
+
+// Função para formatar nome de tabela
+function formatTableName(tableName) {
+    return tableName
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase())
+        .trim();
+}
+
+// Função para detectar categoria pelo nome da tabela
+function detectCategory(tableName) {
+    const name = tableName.toLowerCase();
+
+    if (name.includes('limpeza') || name.includes('higiene') || name.includes('clean')) {
+        return 'limpeza';
+    }
+    if (name.includes('mdias') || name.includes('m_dias') || name.includes('m dias')) {
+        return 'mdias';
+    }
+    if (name.includes('saudavel') || name.includes('saudaveis') || name.includes('natural') || name.includes('healthy')) {
+        return 'saudaveis';
+    }
+    if (name.includes('venda') || name.includes('sales') || name.includes('cliente') || name.includes('customer')) {
+        return 'mercearia';
+    }
+    return 'mercearia'; // padrão
+}
+
+// Função principal para listar tabelas do Supabase
+async function listSupabaseTables() {
+    try {
+        console.log("🔍 Consultando tabelas disponíveis no Supabase...");
+
+        // Lista de tabelas para testar (combinando sugeridas e comuns)
+        const tablesToTest = [
+            ...SUGGESTED_TABLES.map(t => t.name),
+            'vendas', 'sales', 'venda',
+            'produtos', 'products', 'product',
+            'clientes', 'customers', 'cliente',
+            'mercearia', 'groceries',
+            'limpeza', 'cleaning',
+            'mdias', 'm_dias',
+            'saudaveis', 'healthy',
+            'users', 'vendedores', 'sellers',
+            'rotas', 'routes',
+            'perfis', 'profiles'
+        ];
+
+        // Remover duplicados
+        const uniqueTables = [...new Set(tablesToTest)];
+
+        console.log(`🧪 Testando ${uniqueTables.length} tabelas possíveis...`);
+
+        const availableTables = [];
+
+        // Testar cada tabela individualmente
+        for (const tableName of uniqueTables) {
+            try {
+                // Tentar buscar 1 registro da tabela
+                const { data, error } = await window.supabase
+                    .from(tableName)
+                    .select('*')
+                    .limit(1);
+
+                if (!error) {
+                    // Tabela existe!
+                    console.log(`✅ Tabela encontrada: ${tableName}`);
+
+                    // Verificar se tem configuração sugerida
+                    const suggestedConfig = SUGGESTED_TABLES.find(t => t.name === tableName);
+
+                    availableTables.push({
+                        name: tableName,
+                        displayName: suggestedConfig?.displayName || formatTableName(tableName),
+                        category: suggestedConfig?.category || detectCategory(tableName),
+                        verified: true
+                    });
+                }
+            } catch (err) {
+                // Ignora erro, tabela não existe ou sem permissão
+                console.log(`❌ Tabela não disponível: ${tableName}`);
+            }
+
+            // Pequeno delay para não sobrecarregar
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        console.log(`📊 Total de tabelas encontradas: ${availableTables.length}`);
+
+        // Se não encontrou nenhuma, tentar método alternativo
+        if (availableTables.length === 0) {
+            console.log("⚠️  Nenhuma tabela encontrada. Tentando método alternativo...");
+            return await tryAlternativeMethod();
+        }
+
+        return availableTables;
+
+    } catch (error) {
+        console.error("Erro ao listar tabelas do Supabase:", error);
+        return [];
+    }
+}
+
+// Método alternativo para buscar tabelas
+async function tryAlternativeMethod() {
+    try {
+        const availableTables = [];
+
+        // Método 2: Tentar buscar via informação_schema (se permitido)
+        try {
+            const { data, error } = await window.supabase
+                .from('information_schema.tables')
+                .select('table_name')
+                .eq('table_schema', 'public')
+                .eq('table_type', 'BASE TABLE');
+
+            if (!error && data) {
+                data.forEach(row => {
+                    const tableName = row.table_name;
+                    const suggestedConfig = SUGGESTED_TABLES.find(t => t.name === tableName);
+
+                    availableTables.push({
+                        name: tableName,
+                        displayName: suggestedConfig?.displayName || formatTableName(tableName),
+                        category: suggestedConfig?.category || detectCategory(tableName),
+                        verified: true
+                    });
+                });
+
+                if (availableTables.length > 0) {
+                    return availableTables;
+                }
+            }
+        } catch (schemaError) {
+            console.log("Método information_schema não disponível:", schemaError.message);
+        }
+
+        // Método 3: Tentar RPC function (se existir)
+        try {
+            const { data, error } = await window.supabase
+                .rpc('get_tables_list');
+
+            if (!error && data) {
+                data.forEach(tableName => {
+                    const suggestedConfig = SUGGESTED_TABLES.find(t => t.name === tableName);
+
+                    availableTables.push({
+                        name: tableName,
+                        displayName: suggestedConfig?.displayName || formatTableName(tableName),
+                        category: suggestedConfig?.category || detectCategory(tableName),
+                        verified: true
+                    });
+                });
+            }
+        } catch (rpcError) {
+            console.log("Função RPC não disponível:", rpcError.message);
+        }
+
+        return availableTables;
+
+    } catch (error) {
+        console.error("Erro no método alternativo:", error);
+        return [];
+    }
+}
+
+// ============================================
+// FIREBASE E AUTENTICAÇÃO
+// ============================================
+
 async function initFirebase() {
     try {
         if (!window.firebaseDb) {
@@ -59,6 +247,16 @@ async function initFirebase() {
         if (window.firebaseDb) {
             firebaseDb = window.firebaseDb;
             console.log("✅ Firebase Firestore conectado!");
+
+            // Verificar se Supabase está configurado
+            if (!window.supabase) {
+                console.error("❌ Supabase não inicializado!");
+                showToast('Erro: Supabase não configurado!', 'error');
+            } else {
+                console.log("✅ Supabase configurado!");
+                console.log("URL:", window.supabase.supabaseUrl);
+                console.log("Projeto:", SUPABASE_PROJECT_ID);
+            }
 
             await checkAdminUser();
             checkSavedLogin();
@@ -117,7 +315,6 @@ function checkSavedLogin() {
                 showScreen('admin-screen');
                 updateAdminWelcome();
                 mixLoadUsers();
-                loadAdminSpreadsheets();
             } else {
                 loadDashboardScreen();
             }
@@ -127,15 +324,6 @@ function checkSavedLogin() {
     }
 }
 
-function updateAdminWelcome() {
-    const avatar = document.getElementById('user-avatar');
-    const name = document.getElementById('user-name');
-
-    if (avatar) avatar.textContent = currentMixUser?.name?.[0]?.toUpperCase() || 'A';
-    if (name) name.textContent = currentMixUser?.name || 'Administrador';
-}
-
-// ===== AUTENTICAÇÃO =====
 async function mixLogin() {
     const tokenInput = document.getElementById('token-input');
     const token = tokenInput ? tokenInput.value.trim() : '';
@@ -166,7 +354,6 @@ async function mixLogin() {
             showScreen('admin-screen');
             updateAdminWelcome();
             mixLoadUsers();
-            loadAdminSpreadsheets();
             showToast(`Olá, ${currentMixUser.name}!`, 'success');
             return;
         }
@@ -214,7 +401,10 @@ async function mixLogin() {
     }
 }
 
-// ===== USUÁRIOS ADMIN =====
+// ============================================
+// ADMIN: GERENCIAMENTO
+// ============================================
+
 async function mixCreateUser() {
     const nameInput = document.getElementById('new-user-name');
     const name = nameInput ? nameInput.value.trim() : '';
@@ -330,364 +520,21 @@ function mixLogout() {
     localStorage.removeItem('userName');
     localStorage.removeItem('userRole');
     currentMixUser = null;
-    currentSpreadsheet = null;
-    currentSpreadsheetName = null;
-    currentSpreadsheetId = null;
+    currentTableName = null;
+    currentTableDisplayName = null;
     showScreen('login-screen');
     const tokenInput = document.getElementById('token-input');
     if (tokenInput) tokenInput.value = '';
     showToast('Logout realizado', 'success');
 }
 
-// ===== UTILITÁRIOS =====
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    const screen = document.getElementById(screenId);
-    if (screen) screen.classList.add('active');
-}
-
-function showError(message) {
-    const errorDiv = document.getElementById('error-msg');
-    if (errorDiv) {
-        errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
-        errorDiv.style.display = 'block';
-    }
-}
-
-function hideError() {
-    const errorDiv = document.getElementById('error-msg');
-    if (errorDiv) errorDiv.style.display = 'none';
-}
-
-function showToast(msg, type = 'success') {
-    const toast = document.getElementById('toast-message');
-    if (!toast) return;
-
-    toast.textContent = msg;
-    toast.className = `toast-message ${type} show`;
-    setTimeout(() => toast.classList.remove('show'), 4000);
-}
-
-function showLoading(message = "Processando...") {
-    const loading = document.getElementById('global-loading');
-    const messageEl = document.getElementById('loading-message');
-    if (loading && messageEl) {
-        messageEl.textContent = message;
-        loading.classList.remove('hidden');
-    }
-}
-
-function hideLoading() {
-    const loading = document.getElementById('global-loading');
-    if (loading) loading.classList.add('hidden');
-}
-
 // ============================================
-// SISTEMA DE PLANILHAS COM ONEDRIVE
+// DASHBOARD: TABELAS DO SUPABASE (ATUALIZADO)
 // ============================================
 
-// ===== FUNÇÕES DE CONVERSÃO DE LINK =====
-function convertOneDriveLink(originalLink) {
-    // Se já for um link da API, retorna como está
-    if (originalLink.includes('api.onedrive.com')) {
-        return originalLink;
-    }
-
-    // Remove parâmetros como ?e=ibxAs4
-    const cleanLink = originalLink.split('?')[0];
-
-    try {
-        // Codifica para base64 URL safe
-        const base64 = btoa(cleanLink)
-            .replace(/=+$/, '')  // Remove = no final
-            .replace(/\//g, '_') // / → _
-            .replace(/\+/g, '-'); // + → -
-
-        // Retorna link da API do OneDrive
-        return `https://api.onedrive.com/v1.0/shares/u!${base64}/driveitem/content`;
-    } catch (error) {
-        console.error('Erro ao converter link:', error);
-        return originalLink;
-    }
-}
-
-// ===== ADMIN: GERENCIAMENTO DE PLANILHAS =====
-function showAddSpreadsheetModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-plus-circle"></i> Adicionar Nova Planilha</h3>
-                <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="modal-body">
-                <p class="text-secondary mb-6">
-                    <i class="fas fa-info-circle mr-2"></i>
-                    Cole o link do OneDrive e preencha os dados da planilha
-                </p>
-                
-                <div class="space-y-4">
-                    <div class="form-group">
-                        <label><i class="fas fa-link mr-2"></i>Link do OneDrive</label>
-                        <input type="text" id="modal-link" class="form-control" 
-                               placeholder="https://1drv.ms/x/s!ABC123...">
-                        <small class="text-xs text-secondary mt-1">
-                            Compartilhe no OneDrive → "Qualquer pessoa" → Cole o link aqui
-                        </small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label><i class="fas fa-file-excel mr-2"></i>Nome da Planilha</label>
-                        <input type="text" id="modal-name" class="form-control" 
-                               placeholder="Ex: Produtos Saudáveis">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label><i class="fas fa-tag mr-2"></i>Categoria</label>
-                        <div class="modal-categories">
-                            ${Object.entries(CATEGORY_CONFIG).map(([key, config]) => `
-                                <button type="button" class="modal-category-btn ${key} ${key === 'mercearia' ? 'active' : ''}" 
-                                        onclick="selectCategory('${key}')">
-                                    <i class="fas ${config.icon}"></i>
-                                    ${config.name}
-                                </button>
-                            `).join('')}
-                        </div>
-                        <input type="hidden" id="modal-category" value="mercearia">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label><i class="fas fa-align-left mr-2"></i>Descrição</label>
-                        <textarea id="modal-description" class="form-control" rows="3" 
-                                  placeholder="Descreva o conteúdo desta planilha..."></textarea>
-                    </div>
-                    
-                    <div class="modal-footer">
-                        <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">
-                            Cancelar
-                        </button>
-                        <button class="btn-primary" onclick="addNewSpreadsheet()">
-                            <i class="fas fa-save mr-2"></i> Salvar Planilha
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-}
-
-function selectCategory(category) {
-    // Remover active de todos os botões
-    document.querySelectorAll('.modal-category-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // Adicionar active ao botão clicado
-    const btn = document.querySelector(`.modal-category-btn.${category}`);
-    if (btn) {
-        btn.classList.add('active');
-        document.getElementById('modal-category').value = category;
-    }
-}
-
-async function addNewSpreadsheet() {
-    const linkInput = document.getElementById('modal-link');
-    const nameInput = document.getElementById('modal-name');
-    const categoryInput = document.getElementById('modal-category');
-    const descriptionInput = document.getElementById('modal-description');
-
-    const originalLink = linkInput ? linkInput.value.trim() : '';
-    const name = nameInput ? nameInput.value.trim() : '';
-    const category = categoryInput ? categoryInput.value : 'mercearia';
-    const description = descriptionInput ? descriptionInput.value.trim() : '';
-
-    if (!originalLink) {
-        showToast('Por favor, cole o link do OneDrive!', 'error');
-        return;
-    }
-
-    if (!name) {
-        showToast('Por favor, informe um nome para a planilha!', 'error');
-        return;
-    }
-
-    // Converter link do OneDrive
-    const downloadUrl = convertOneDriveLink(originalLink);
-
-    showLoading('Salvando planilha...');
-
-    try {
-        const { collection, addDoc, serverTimestamp } = await import(
-            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
-        );
-
-        // Extrair nome do arquivo do link
-        const fileName = extractFileNameFromLink(originalLink) || 'planilha.xlsx';
-        const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.mercearia;
-
-        await addDoc(collection(firebaseDb, 'spreadsheets'), {
-            name: name,
-            fileName: fileName,
-            originalLink: originalLink,
-            downloadUrl: downloadUrl,
-            category: category,
-            description: description,
-            icon: config.icon,
-            uploadedAt: serverTimestamp(),
-            uploadedBy: currentMixUser?.id || 'admin',
-            status: 'ativo'
-        });
-
-        hideLoading();
-        showToast('✅ Planilha adicionada com sucesso!');
-
-        // Fechar modal e recarregar lista
-        document.querySelector('.modal-overlay')?.remove();
-        loadAdminSpreadsheets();
-
-    } catch (error) {
-        hideLoading();
-        showToast('❌ Erro ao salvar planilha: ' + error.message, 'error');
-    }
-}
-
-function extractFileNameFromLink(link) {
-    // Tenta extrair nome do arquivo do link
-    const match = link.match(/[^/]+\.(xlsx|xls|csv)/i);
-    return match ? match[0] : 'planilha.xlsx';
-}
-
-// Função para gerar card de planilha
-function generateSpreadsheetCard(doc, data, isAdmin = false) {
-    const category = data.category || 'mercearia';
-    const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.mercearia;
-    const date = data.uploadedAt?.toDate ? data.uploadedAt.toDate() : new Date();
-
-    if (isAdmin) {
-        return `
-            <div class="spreadsheet-card ${category}" data-id="${doc.id}">
-                <div class="spreadsheet-icon">
-                    <i class="fas ${config.icon}"></i>
-                </div>
-                <h4>${data.name}</h4>
-                <p class="spreadsheet-desc">${data.description || config.description}</p>
-                <div class="spreadsheet-meta">
-                    <span class="category-badge ${category}">
-                        <i class="fas ${config.icon}"></i>
-                        ${config.name}
-                    </span>
-                    <span>${date.toLocaleDateString('pt-BR')}</span>
-                    <button onclick="deleteSpreadsheet('${doc.id}')" 
-                            class="delete-btn">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    } else {
-        return `
-            <div class="spreadsheet-card ${category}" 
-                 onclick="selectSpreadsheet('${doc.id}', '${data.name}', '${data.downloadUrl}')">
-                <div class="spreadsheet-icon">
-                    <i class="fas ${config.icon}"></i>
-                </div>
-                <h4>${data.name}</h4>
-                <p class="spreadsheet-desc">${data.description || config.description}</p>
-                <div class="spreadsheet-meta">
-                    <span class="category-badge ${category}">
-                        <i class="fas ${config.icon}"></i>
-                        ${config.name}
-                    </span>
-                    <span>${date.toLocaleDateString('pt-BR')}</span>
-                </div>
-            </div>
-        `;
-    }
-}
-
-async function loadAdminSpreadsheets() {
-    const container = document.getElementById('spreadsheets-list');
-    if (!container) return;
-
-    try {
-        const { collection, query, orderBy, getDocs } = await import(
-            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
-        );
-
-        const q = query(
-            collection(firebaseDb, 'spreadsheets'),
-            orderBy('uploadedAt', 'desc')
-        );
-
-        const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">
-                        <i class="fas fa-folder-open"></i>
-                    </div>
-                    <h4>Nenhuma planilha cadastrada</h4>
-                    <p>Clique em "Adicionar Planilha" para começar.</p>
-                </div>
-            `;
-            return;
-        }
-
-        let html = '<div class="spreadsheet-grid">';
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            html += generateSpreadsheetCard(doc, data, true);
-        });
-        html += '</div>';
-
-        container.innerHTML = html;
-
-    } catch (error) {
-        console.error('Erro ao carregar planilhas:', error);
-        container.innerHTML = `
-            <div class="error-state">
-                <h4><i class="fas fa-exclamation-triangle"></i> Erro</h4>
-                <p>${error.message}</p>
-            </div>
-        `;
-    }
-}
-
-async function deleteSpreadsheet(spreadsheetId) {
-    if (!confirm('Tem certeza que deseja excluir esta planilha?')) return;
-
-    try {
-        showLoading('Excluindo planilha...');
-
-        const { doc, deleteDoc } = await import(
-            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
-        );
-
-        await deleteDoc(doc(firebaseDb, 'spreadsheets', spreadsheetId));
-
-        hideLoading();
-        showToast('✅ Planilha excluída com sucesso!');
-
-        loadAdminSpreadsheets();
-
-    } catch (error) {
-        hideLoading();
-        showToast('❌ Erro ao excluir planilha: ' + error.message, 'error');
-    }
-}
-
-// ===== DASHBOARD: SELEÇÃO DE PLANILHAS =====
 function loadDashboardScreen() {
     const userName = currentMixUser?.name || 'Vendedor';
 
-    // Atualizar informações do usuário
     const avatar = document.getElementById('dashboard-user-avatar');
     const nameEl = document.getElementById('dashboard-user-name');
 
@@ -696,71 +543,226 @@ function loadDashboardScreen() {
 
     showScreen('dashboard-screen');
 
-    // Carregar planilhas disponíveis
     setTimeout(() => {
-        loadAvailableSpreadsheets();
+        initializeApp(); // Garante inicialização dos listeners
+        loadAvailableTables();
     }, 100);
 }
 
-async function loadAvailableSpreadsheets() {
+async function loadAvailableTables() {
     const container = document.getElementById('spreadsheet-cards');
     const noSpreadsheets = document.getElementById('no-spreadsheets');
 
     if (!container) return;
 
     try {
-        const { collection, query, orderBy, getDocs } = await import(
-            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
-        );
+        // Mostrar estado de carregamento
+        container.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+                <div class="spinner" style="width: 40px; height: 40px; margin: 0 auto 20px; border: 3px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <p>Consultando tabelas disponíveis no Supabase...</p>
+                <p style="font-size: 12px; color: #94a3b8; margin-top: 10px;">Projeto: ${SUPABASE_PROJECT_ID}</p>
+            </div>
+        `;
 
-        const q = query(
-            collection(firebaseDb, 'spreadsheets'),
-            orderBy('uploadedAt', 'desc')
-        );
+        // Consultar tabelas do Supabase dinamicamente
+        const supabaseTables = await listSupabaseTables();
 
-        const snapshot = await getDocs(q);
+        // Se não encontrou nenhuma tabela
+        if (!supabaseTables || supabaseTables.length === 0) {
+            console.warn("⚠️  Nenhuma tabela encontrada no Supabase.");
 
-        if (snapshot.empty) {
-            container.innerHTML = '';
+            container.innerHTML = `
+                <div class="error-state" style="grid-column: 1 / -1;">
+                    <h4><i class="fas fa-database mr-2"></i> Nenhuma Tabela Encontrada</h4>
+                    <p>Não foi possível encontrar tabelas no seu projeto do Supabase.</p>
+                    <p style="font-size: 12px; color: #94a3b8; margin-top: 5px;">Projeto: ${SUPABASE_PROJECT_ID}</p>
+                    <div class="alert" style="background: rgba(245, 158, 11, 0.1); padding: 12px; border-radius: 8px; margin: 15px 0;">
+                        <i class="fas fa-info-circle mr-2" style="color: #f59e0b;"></i>
+                        <strong>Soluções:</strong><br>
+                        1. Crie tabelas no seu projeto Supabase<br>
+                        2. Clique em "Abrir Meu Supabase" para gerenciar<br>
+                        3. Use nomes comuns como "vendas", "produtos", etc.
+                    </div>
+                    <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                        <button onclick="loadAvailableTables()" class="btn-primary">
+                            <i class="fas fa-redo mr-2"></i> Tentar Novamente
+                        </button>
+                        <button onclick="openSupabaseTables()" class="btn-secondary">
+                            <i class="fas fa-external-link-alt mr-2"></i> Abrir Meu Supabase
+                        </button>
+                    </div>
+                </div>
+            `;
+
             if (noSpreadsheets) noSpreadsheets.classList.remove('hidden');
+            showToast('Nenhuma tabela encontrada no seu Supabase!', 'warning');
             return;
         }
 
-        // Gerar cartões para cada planilha
-        let html = '<div class="spreadsheet-grid">';
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            html += generateSpreadsheetCard(doc, data, false);
-        });
-        html += '</div>';
+        // Renderizar tabelas encontradas
+        renderTablesList(container, supabaseTables);
 
-        container.innerHTML = html;
         if (noSpreadsheets) noSpreadsheets.classList.add('hidden');
 
+        showToast(`${supabaseTables.length} tabela(s) encontrada(s) no seu Supabase`, 'success');
+        console.log(`✅ ${supabaseTables.length} tabelas disponíveis no projeto ${SUPABASE_PROJECT_ID}`);
+
     } catch (error) {
-        console.error('Erro ao carregar planilhas:', error);
+        console.error('Erro ao carregar tabelas:', error);
         container.innerHTML = `
-            <div class="error-state">
-                <h4><i class="fas fa-exclamation-triangle"></i> Erro</h4>
-                <p>${error.message}</p>
-                <button onclick="loadAvailableSpreadsheets()" class="btn-primary mt-4">
-                    <i class="fas fa-redo mr-2"></i>Tentar Novamente
-                </button>
+            <div class="error-state" style="grid-column: 1 / -1;">
+                <h4><i class="fas fa-exclamation-triangle mr-2"></i> Erro ao Conectar</h4>
+                <p>Não foi possível consultar as tabelas do Supabase.</p>
+                <p><small>Projeto: ${SUPABASE_PROJECT_ID}</small></p>
+                <p><small>${error.message}</small></p>
+                <div style="margin-top: 20px;">
+                    <button onclick="loadAvailableTables()" class="btn-primary">
+                        <i class="fas fa-redo mr-2"></i> Tentar Novamente
+                    </button>
+                    <button onclick="useSuggestedTables()" class="btn-secondary ml-2">
+                        <i class="fas fa-list mr-2"></i> Usar Tabelas Sugeridas
+                    </button>
+                </div>
             </div>
         `;
+        showToast('Erro ao conectar com seu Supabase', 'error');
     }
 }
 
-// ===== FUNÇÃO PARA FILTRAR PLANILHAS =====
+// Fallback para usar tabelas sugeridas
+function useSuggestedTables() {
+    const container = document.getElementById('spreadsheet-cards');
+    if (container) {
+        const suggestedWithStatus = SUGGESTED_TABLES.map(t => ({ ...t, verified: false }));
+        renderTablesList(container, suggestedWithStatus);
+        showToast('Usando tabelas sugeridas (não verificadas no Supabase)', 'warning');
+    }
+}
+
+function renderTablesList(container, tables) {
+    if (!tables || tables.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <div class="empty-state-icon">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h4>Nenhuma tabela disponível</h4>
+                <p>Crie tabelas no seu Supabase primeiro</p>
+                <p style="font-size: 12px; color: #94a3b8;">Projeto: ${SUPABASE_PROJECT_ID}</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div class="spreadsheet-grid">';
+
+    tables.forEach(table => {
+        const config = CATEGORY_CONFIG[table.category] || CATEGORY_CONFIG.mercearia;
+        const isVerified = table.verified !== false;
+
+        html += `
+            <div class="spreadsheet-card ${table.category} ${!isVerified ? 'unverified' : ''}" 
+                 onclick="selectTable('${table.name.replace(/'/g, "\\'")}', '${table.displayName.replace(/'/g, "\\'")}', '${table.category}')">
+                <div class="spreadsheet-icon">
+                    <i class="fas ${config.icon}"></i>
+                    ${!isVerified ? '<span class="unverified-badge" title="Não verificado no Supabase">?</span>' : ''}
+                </div>
+                <h4>${table.displayName}</h4>
+                <p class="spreadsheet-desc">
+                    <strong>Tabela:</strong> ${table.name}<br>
+                    ${config.description}
+                </p>
+                <div class="spreadsheet-meta">
+                    <span class="category-badge ${table.category}">
+                        <i class="fas ${config.icon}"></i>
+                        ${config.name}
+                    </span>
+                    <span><i class="fas fa-database"></i> Supabase</span>
+                    ${isVerified ?
+                '<span class="verified-badge" title="Tabela verificada no seu Supabase"><i class="fas fa-check-circle"></i> Disponível</span>' :
+                '<span class="unverified-text" title="Tabela não verificada"><i class="fas fa-question-circle"></i> Não verificado</span>'}
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Adicionar CSS dinâmico se necessário
+    addDynamicCSS();
+}
+
+function addDynamicCSS() {
+    if (!document.getElementById('dynamic-table-css')) {
+        const style = document.createElement('style');
+        style.id = 'dynamic-table-css';
+        style.textContent = `
+            .unverified-badge {
+                position: absolute;
+                top: -5px;
+                right: -5px;
+                background: #f59e0b;
+                color: white;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                font-size: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                z-index: 1;
+            }
+            .verified-badge {
+                background: rgba(16, 185, 129, 0.2);
+                color: #10b981;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 11px;
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+            }
+            .unverified-text {
+                background: rgba(245, 158, 11, 0.2);
+                color: #f59e0b;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 11px;
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+            }
+            .spreadsheet-card.unverified {
+                opacity: 0.85;
+                border: 1px dashed #f59e0b;
+            }
+            .spreadsheet-card.unverified:hover {
+                opacity: 1;
+                border: 1px solid #f59e0b;
+                transform: translateY(-2px);
+            }
+            .spreadsheet-icon {
+                position: relative;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
 function filterSpreadsheets(category) {
-    // Atualizar botões ativos
     document.querySelectorAll('.category-filter-btn').forEach(btn => {
         btn.classList.remove('active');
     });
     const btn = document.querySelector(`.category-filter-btn.${category}`);
     if (btn) btn.classList.add('active');
 
-    // Filtrar cartões
     const cards = document.querySelectorAll('.spreadsheet-card');
     cards.forEach(card => {
         if (category === 'all' || card.classList.contains(category)) {
@@ -771,119 +773,175 @@ function filterSpreadsheets(category) {
     });
 }
 
-// ===== SELEÇÃO E CARREGAMENTO DE PLANILHA =====
-async function selectSpreadsheet(spreadsheetId, spreadsheetName, downloadUrl) {
-    currentSpreadsheetId = spreadsheetId;
-    currentSpreadsheetName = spreadsheetName;
+// ============================================
+// FUNÇÃO PARA ABRIR SEU SUPABASE ESPECÍFICO
+// ============================================
 
-    // Atualizar UI
+function openSupabaseTables() {
+    // URL do Table Editor do SEU projeto específico
+    const tableEditorUrl = `https://app.supabase.com/project/${SUPABASE_PROJECT_ID}/editor`;
+
+    console.log('🚀 Abrindo SEU projeto do Supabase:', tableEditorUrl);
+    console.log('📊 Projeto: 33Soprano\'s Project');
+    console.log('🔗 URL:', tableEditorUrl);
+
+    // Abrir em nova aba
+    window.open(tableEditorUrl, '_blank');
+
+    showToast('Abrindo seu projeto do Supabase...', 'info');
+}
+
+// ============================================
+// SELEÇÃO E CARREGAMENTO DE TABELA
+// ============================================
+
+async function selectTable(tableName, displayName, category) {
+    currentTableName = tableName;
+    currentTableDisplayName = displayName;
+
     const selector = document.getElementById('spreadsheet-selector');
     const dataSection = document.getElementById('data-section');
 
     if (selector) selector.classList.add('hidden');
     if (dataSection) dataSection.classList.remove('hidden');
 
-    // Carregar dados da planilha para obter a categoria
     try {
-        const { doc, getDoc } = await import(
-            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
-        );
+        const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.mercearia;
 
-        const spreadsheetDoc = await getDoc(doc(firebaseDb, 'spreadsheets', spreadsheetId));
-
-        if (spreadsheetDoc.exists()) {
-            const data = spreadsheetDoc.data();
-            const category = data.category || 'mercearia';
-            const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.mercearia;
-
-            // Atualizar cabeçalho
-            const headerHTML = `
-                <div class="selected-spreadsheet-header ${category}">
-                    <div class="selected-spreadsheet-icon">
-                        <i class="fas ${config.icon}"></i>
-                    </div>
-                    <div>
-                        <h3>${spreadsheetName}</h3>
-                        <p class="text-secondary">
-                            <span class="category-badge ${category}">
-                                <i class="fas ${config.icon}"></i>
-                                ${config.name}
-                            </span>
-                            • ${data.description || config.description}
-                        </p>
-                    </div>
-                    <div class="spreadsheet-actions">
-                        <button id="btn-change-spreadsheet" class="btn-secondary">
-                            <i class="fas fa-exchange-alt mr-2"></i> Trocar Planilha
-                        </button>
-                        <button id="btn-refresh-data" class="btn-primary">
-                            <i class="fas fa-sync-alt mr-2"></i> Atualizar
-                        </button>
-                    </div>
+        const headerHTML = `
+            <div class="selected-spreadsheet-header ${category}">
+                <div class="selected-spreadsheet-icon">
+                    <i class="fas ${config.icon}"></i>
                 </div>
-            `;
+                <div>
+                    <h3>${displayName}</h3>
+                    <p class="text-secondary">
+                        <span class="category-badge ${category}">
+                            <i class="fas ${config.icon}"></i>
+                            ${config.name}
+                        </span>
+                        • Tabela: <strong>${tableName}</strong> • Projeto: ${SUPABASE_PROJECT_ID}
+                    </p>
+                </div>
+                <div class="spreadsheet-actions">
+                    <button id="btn-change-table" class="btn-secondary">
+                        <i class="fas fa-exchange-alt mr-2"></i> Trocar Tabela
+                    </button>
+                    <button id="btn-refresh-data" class="btn-primary">
+                        <i class="fas fa-sync-alt mr-2"></i> Atualizar
+                    </button>
+                </div>
+            </div>
+        `;
 
-            const headerContainer = document.getElementById('selected-spreadsheet-header');
-            if (headerContainer) headerContainer.innerHTML = headerHTML;
+        const headerContainer = document.getElementById('selected-spreadsheet-header');
+        if (headerContainer) headerContainer.innerHTML = headerHTML;
 
-            // Reatachar eventos
-            const changeBtn = document.getElementById('btn-change-spreadsheet');
-            const refreshBtn = document.getElementById('btn-refresh-data');
+        const changeBtn = document.getElementById('btn-change-table');
+        const refreshBtn = document.getElementById('btn-refresh-data');
 
-            if (changeBtn) {
-                changeBtn.addEventListener('click', () => {
-                    if (dataSection) dataSection.classList.add('hidden');
-                    if (selector) selector.classList.remove('hidden');
-                    currentSpreadsheetId = null;
-                    currentSpreadsheetName = null;
-                });
-            }
-
-            if (refreshBtn) {
-                refreshBtn.addEventListener('click', () => {
-                    loadSelectedSpreadsheetFromId(spreadsheetId);
-                });
-            }
+        if (changeBtn) {
+            changeBtn.addEventListener('click', () => {
+                if (dataSection) dataSection.classList.add('hidden');
+                if (selector) selector.classList.remove('hidden');
+                currentTableName = null;
+                currentTableDisplayName = null;
+            });
         }
-    } catch (error) {
-        console.error('Erro ao carregar informações da planilha:', error);
-    }
 
-    // Carregar dados da planilha selecionada
-    await loadSelectedSpreadsheet(downloadUrl);
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                loadDataFromTable(tableName, displayName);
+            });
+        }
+
+        // Carregar dados da tabela
+        await loadDataFromTable(tableName, displayName);
+
+    } catch (error) {
+        console.error('Erro ao selecionar tabela:', error);
+        showDataError(`Erro ao acessar a tabela "${displayName}" do seu Supabase: ${error.message}`);
+    }
 }
 
-async function loadSelectedSpreadsheet(downloadUrl) {
+async function loadDataFromTable(tableName, displayName) {
     showDataLoading();
+    console.log(`📥 Carregando dados da tabela: ${tableName}`);
+    console.log(`📊 Projeto: ${SUPABASE_PROJECT_ID}`);
 
     try {
-        showLoading('Baixando planilha do OneDrive...');
+        // Buscar TODOS os dados da tabela (com paginação automática)
+        const { data, error } = await fetchAllRows(tableName);
 
-        // Fazer download do OneDrive
-        const response = await fetch(downloadUrl);
-
-        if (!response.ok) {
-            throw new Error(`Erro ao baixar: ${response.status} ${response.statusText}`);
+        if (error) {
+            if (error.message.includes('does not exist')) {
+                throw new Error(`A tabela "${tableName}" não existe no seu Supabase (Projeto: ${SUPABASE_PROJECT_ID}).`);
+            }
+            throw error;
         }
 
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
+        console.log(`✅ ${data?.length || 0} registros carregados da tabela ${tableName}`);
+        console.log(`🏆 Projeto: ${SUPABASE_PROJECT_ID}`);
 
-        hideLoading();
+        if (!data || data.length === 0) {
+            showDataError(`
+                <strong>Tabela "${displayName}" está vazia!</strong><br><br>
+                A tabela <strong>${tableName}</strong> no seu projeto Supabase não contém dados.<br>
+                <strong>Projeto:</strong> ${SUPABASE_PROJECT_ID}<br><br>
+                <strong>Solução:</strong> Adicione dados à tabela no seu Supabase.
+            `);
+            return;
+        }
 
-        // Processar dados
-        const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+        // Converter dados do Supabase para formato de "planilha"
+        const rows = convertSupabaseDataToRows(data);
 
+        // Processar os dados
         processData(rows);
-        hideDataLoading();
 
     } catch (error) {
-        console.error('Erro ao carregar planilha:', error);
-        hideLoading();
-        showDataError(`Erro ao carregar "${currentSpreadsheetName}": ${error.message}`);
+        console.error('❌ Erro ao carregar dados da tabela:', error);
+        showDataError(`
+            <strong>Erro ao carregar dados de "${displayName}"</strong><br><br>
+            <strong>Tabela:</strong> ${tableName}<br>
+            <strong>Projeto:</strong> ${SUPABASE_PROJECT_ID}<br>
+            <strong>Erro:</strong> ${error.message}<br><br>
+            <strong>Verifique:</strong><br>
+            1. Se a tabela existe no seu Supabase<br>
+            2. Permissões de acesso à tabela<br>
+            3. Conexão com o Supabase<br>
+            4. Se há dados na tabela
+        `);
     }
+}
+
+function convertSupabaseDataToRows(supabaseData) {
+    if (!supabaseData || supabaseData.length === 0) {
+        return [];
+    }
+
+    console.log('🔄 Convertendo dados do seu Supabase para formato de planilha...');
+
+    // Obter cabeçalhos (chaves do primeiro objeto)
+    const firstRow = supabaseData[0];
+    const headers = Object.keys(firstRow);
+
+    console.log('📋 Cabeçalhos detectados:', headers);
+
+    // Criar array de linhas
+    const rows = [];
+
+    // Adicionar cabeçalhos como primeira linha
+    rows.push(headers);
+
+    // Adicionar dados
+    supabaseData.forEach(row => {
+        const rowData = headers.map(header => row[header] ?? '');
+        rows.push(rowData);
+    });
+
+    console.log(`✅ Convertidos ${rows.length} linhas (incluindo cabeçalhos)`);
+    return rows;
 }
 
 function showDataLoading() {
@@ -913,39 +971,20 @@ function showDataError(message) {
     if (loadingEl) loadingEl.classList.add('hidden');
     if (filtersEl) filtersEl.classList.add('hidden');
     if (errorEl) errorEl.classList.remove('hidden');
-    if (messageEl) messageEl.textContent = message;
+    if (messageEl) messageEl.innerHTML = message;
 
-    // Configurar botão de retry
     const retryBtn = document.getElementById('btn-retry');
     if (retryBtn) {
         retryBtn.onclick = () => {
-            loadSelectedSpreadsheetFromId(currentSpreadsheetId);
+            loadDataFromTable(currentTableName, currentTableDisplayName);
         };
     }
 }
 
-async function loadSelectedSpreadsheetFromId(spreadsheetId) {
-    try {
-        const { doc, getDoc } = await import(
-            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
-        );
-
-        const spreadsheetDoc = await getDoc(doc(firebaseDb, 'spreadsheets', spreadsheetId));
-
-        if (spreadsheetDoc.exists()) {
-            const data = spreadsheetDoc.data();
-            await loadSelectedSpreadsheet(data.downloadUrl);
-        }
-    } catch (error) {
-        showDataError(`Erro ao recuperar dados da planilha: ${error.message}`);
-    }
-}
-
 // ============================================
-// SISTEMA DE PROCESSAMENTO DE DADOS (ORIGINAL)
+// SISTEMA DE PROCESSAMENTO DE DADOS
 // ============================================
 
-// --- Variáveis Globais de Processamento ---
 let allProducts = new Set();
 let hierarchy = {};
 let currentTab = 'opportunities';
@@ -954,11 +993,9 @@ let currentMissing = [];
 let currentSold = [];
 let currentConsultantName = '';
 
-// --- DOM Elements ---
 let consultantSelect, routeGroup, opportunitiesList, debugLog;
 let resultsTitle, tabOpportunities, tabSold;
 
-// --- Helpers ---
 function log(msg) {
     const timestamp = new Date().toLocaleTimeString();
     if (debugLog) {
@@ -1022,188 +1059,378 @@ function detectProfile(str) {
     return 'N/D';
 }
 
-// --- Core Processing ---
 function processData(data) {
-    log(`Iniciando processamento de ${data.length} linhas...`);
-    if (!data || data.length === 0) { log('Planilha vazia'); return; }
-
-    showLoading('Processando planilha...');
-
-    const maxScan = Math.min(50, data.length);
-    const headerKeywords = [/consultor/i, /vendedor/i, /representante/i, /cliente/i, /produto/i, /rota/i, /name/i];
-
-    let bestRow = 0, bestScore = -1;
-    for (let r = 0; r < maxScan; r++) {
-        const row = (data[r] || []).map(c => c ? String(c).toLowerCase() : '');
-        let score = 0;
-        for (const cell of row) {
-            for (const kw of headerKeywords) {
-                if (kw.test(cell)) { score++; break; }
-            }
+    try {
+        log(`Iniciando processamento de ${data.length} linhas...`);
+        if (!data || data.length === 0) {
+            log('Tabela vazia');
+            return;
         }
-        if (score > bestScore) { bestScore = score; bestRow = r; }
-    }
 
-    if (bestScore <= 0) {
-        log('AVISO: cabeçalho não detectado nas primeiras 50 linhas; usando linha 0.');
-        bestRow = 0;
-    } else {
-        log(`Cabeçalho estimado na linha ${bestRow + 1} (score=${bestScore}).`);
-    }
+        showLoading('Processando dados da tabela...');
 
-    const headers = (data[bestRow] || []).map(h => h ? String(h).trim() : '');
-    log(`Cabeçalho detectado: ${headers.join(' | ')}`);
+        hierarchy = {};
+        allProducts = new Set();
 
-    const findColByList = (list) => {
-        for (let i = 0; i < headers.length; i++) {
-            const h = headers[i] ? headers[i].toString().toLowerCase() : '';
-            for (const pat of list) {
-                if (typeof pat === 'string') {
-                    if (h.includes(pat)) return i;
-                } else {
-                    if (pat.test(h)) return i;
+        console.log('🔍 DEBUG: Mostrando primeiras 3 linhas da tabela:');
+        for (let i = 0; i < Math.min(3, data.length); i++) {
+            console.log(`Linha ${i}:`, data[i]);
+        }
+
+        // DETECÇÃO DE CABEÇALHO - PRIORIDADE PARA "CONSULTOR"
+        const maxScan = Math.min(50, data.length);
+
+        // Primeiro: Procurar especificamente por "Consultor" (exato ou similar)
+        let headerRow = -1;
+        let consultantCol = -1;
+
+        for (let r = 0; r < maxScan; r++) {
+            const row = data[r] || [];
+            for (let c = 0; c < row.length; c++) {
+                const cell = row[c] ? String(row[c]).trim().toLowerCase() : '';
+
+                // Procura por "consultor" em várias variações
+                if (cell === 'consultor' ||
+                    cell === 'consultor(a)' ||
+                    cell === 'consultor/a' ||
+                    cell.includes('consultor') && cell.length < 15) {
+                    headerRow = r;
+                    consultantCol = c;
+                    console.log(`✅ Encontrada coluna "Consultor" na linha ${r + 1}, coluna ${c}: "${row[c]}"`);
+                    break;
                 }
             }
-        }
-        return -1;
-    };
-
-    const consultantPatterns = [/consultor/i, /vendedor/i, /representante/i, /\brep\b/i, /consultora/i];
-    const clientPatterns = [/cliente/i, /pdv/i, /ponto de venda/i, /fantasia/i, /loja/i, /filial/i, /name/i];
-    const productPatterns = [/produto/i, /descri/i, /item/i, /sku/i];
-    const routePatterns = [/rota/i, /roteiro/i];
-    const profilePatterns = [/perfil/i, /categoria/i, /tipo/i, /segmento/i, /classificacao/i];
-
-    const colMap = {
-        consultant: findColByList(consultantPatterns),
-        client: findColByList(clientPatterns),
-        product: findColByList(productPatterns),
-        route: findColByList(routePatterns),
-        profile: findColByList(profilePatterns),
-        headerRowIndex: bestRow
-    };
-
-    log(`Mapeamento: ${JSON.stringify(colMap)}`);
-
-    if (colMap.consultant === -1) log('ERRO: coluna CONSULTOR não encontrada.');
-    if (colMap.client === -1) log('ERRO: coluna CLIENTE não encontrada.');
-
-    // Obter nome do consultor logado
-    const userName = currentMixUser?.name || localStorage.getItem('userName') || 'Consultor';
-    currentConsultantName = userName;
-
-    log(`Filtrando dados para o consultor: ${currentConsultantName}`);
-
-    hierarchy = {};
-    allProducts = new Set();
-    let salesCount = 0;
-    let numericSalesCount = 0;
-
-    const isWide = colMap.product === -1;
-    let productColumns = [];
-
-    if (isWide) {
-        const infoIndices = [colMap.consultant, colMap.route, colMap.client, colMap.profile].filter(i => i !== -1);
-        const maxInfoIndex = infoIndices.length ? Math.max(...infoIndices) : -1;
-        const startIndex = Math.max(8, maxInfoIndex + 1);
-        const ignored = ['perfil', 'tipo', 'categoria', 'segmento'];
-
-        for (let c = startIndex; c < headers.length; c++) {
-            const rawName = headers[c] ? headers[c].trim() : `Col${c}`;
-            const nameLower = rawName.toString().toLowerCase();
-            if (ignored.includes(nameLower)) continue;
-            productColumns.push({ index: c, name: rawName });
-            allProducts.add(rawName);
-        }
-        log(`Formato WIDE. Produtos: ${productColumns.length}`);
-    } else {
-        log('Formato LONG detectado.');
-    }
-
-    // Contadores para estatísticas
-    let totalConsultants = new Set();
-    let totalClients = new Set();
-    let totalProducts = new Set();
-    let totalOpportunities = 0;
-
-    for (let r = colMap.headerRowIndex + 1; r < data.length; r++) {
-        const row = data[r];
-        if (!row || row.length === 0) continue;
-
-        const consultantCell = colMap.consultant !== -1 ? row[colMap.consultant] : undefined;
-        const clientCell = colMap.client !== -1 ? row[colMap.client] : undefined;
-        const routeCell = colMap.route !== -1 ? row[colMap.route] : undefined;
-        const profileCell = colMap.profile !== -1 ? row[colMap.profile] : undefined;
-
-        if (!consultantCell || !clientCell) continue;
-
-        const consultant = String(consultantCell).trim();
-
-        // FILTRO CRÍTICO: Mostrar apenas dados do consultor logado
-        if (consultant !== currentConsultantName) {
-            continue;
+            if (headerRow !== -1) break;
         }
 
-        const client = String(clientCell).trim();
-        const route = normalizeRoute(routeCell);
-        const profile = detectProfile(profileCell);
+        // Se não encontrou "Consultor", tenta outros padrões
+        if (headerRow === -1) {
+            console.log('⚠️  Não encontrou "Consultor", tentando padrões alternativos...');
+            const headerKeywords = [
+                /consultor/i, /vendedor/i, /representante/i, /nome vendedor/i,
+                /cliente/i, /pdv/i, /ponto de venda/i,
+                /produto/i, /item/i, /descri/i, /sku/i,
+                /rota/i, /roteiro/i,
+                /perfil/i, /categoria/i, /tipo/i
+            ];
 
-        // Adiciona aos contadores totais
-        totalConsultants.add(consultant);
-        totalClients.add(client);
+            let bestRow = 0, bestScore = -1;
+            for (let r = 0; r < maxScan; r++) {
+                const row = (data[r] || []).map(c => c ? String(c).toLowerCase().trim() : '');
+                let score = 0;
+                for (const cell of row) {
+                    if (!cell) continue;
+                    for (const kw of headerKeywords) {
+                        if (kw.test(cell)) {
+                            score++;
+                            break;
+                        }
+                    }
+                }
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestRow = r;
+                }
+            }
 
-        if (!hierarchy[consultant]) hierarchy[consultant] = {};
-        if (!hierarchy[consultant][route]) hierarchy[consultant][route] = {};
-        if (!hierarchy[consultant][route][client]) {
-            hierarchy[consultant][route][client] = {
-                products: new Set(),
-                profile: profile
-            };
+            headerRow = bestRow;
+            console.log(`📊 Cabeçalho detectado na linha ${headerRow + 1} (score=${bestScore})`);
         }
+
+        const headers = (data[headerRow] || []).map(h => h ? String(h).trim() : '');
+        console.log('📋 Cabeçalhos detectados:', headers);
+
+        // FUNÇÃO PARA ENCONTRAR COLUNAS
+        const findColByPatterns = (patterns, exactFirst = false) => {
+            // Primeiro: procura exato (case insensitive)
+            for (let i = 0; i < headers.length; i++) {
+                const headerText = headers[i] ? String(headers[i]).trim().toLowerCase() : '';
+                if (!headerText) continue;
+
+                for (const pattern of patterns) {
+                    if (typeof pattern === 'string') {
+                        if (headerText === pattern.toLowerCase()) {
+                            console.log(`✅ Encontrada coluna EXATA "${headers[i]}" (índice ${i})`);
+                            return i;
+                        }
+                    } else if (pattern.test(headerText)) {
+                        console.log(`✅ Encontrada coluna "${headers[i]}" (índice ${i}) para padrão ${pattern}`);
+                        return i;
+                    }
+                }
+            }
+
+            // Se não encontrou exato, procura por contém
+            for (let i = 0; i < headers.length; i++) {
+                const headerText = headers[i] ? String(headers[i]).toLowerCase() : '';
+                if (!headerText) continue;
+
+                for (const pattern of patterns) {
+                    if (typeof pattern === 'string') {
+                        if (headerText.includes(pattern.toLowerCase())) {
+                            console.log(`✅ Encontrada coluna CONTÉM "${headers[i]}" (índice ${i})`);
+                            return i;
+                        }
+                    }
+                }
+            }
+
+            // Se não encontrou nada, retorna -1 silenciosamente (esperado para formato Wide)
+            // console.warn(`❌ Nenhuma coluna encontrada para padrões:`, patterns);
+            return -1;
+        };
+
+        // PADRÕES
+        const consultantPatterns = [
+            'consultor', 'consultor(a)', 'consultor/a', /consultor/i,
+            'vendedor', /vendedor/i, 'representante', /representante/i,
+            'rep.', 'nome vendedor', 'vendedora', 'consultora',
+            'vdr', 'vnd', 'nome do vendedor', 'vendedor responsável',
+            'rc', /rc$/i
+        ];
+
+        const clientPatterns = [
+            'name', 'nome', 'cliente', 'pdv', 'ponto de venda',
+            'fantasia', 'loja', 'filial', 'nome cliente', 'estabelecimento',
+            /cliente/i, /pdv/i, /^name$/i
+        ];
+
+        const productPatterns = [
+            'produto', 'item', 'descri', 'sku', 'código',
+            'produtos', 'itens', 'material', 'mercadoria',
+            /produto/i, /item/i
+        ];
+
+        const routePatterns = ['rota', 'roteiro', 'zona', 'região', /rota/i];
+        const profilePatterns = ['perfil', 'categoria', 'tipo', 'segmento', 'class', /perfil/i];
+
+        const colMap = {
+            consultant: findColByPatterns(consultantPatterns, true),
+            client: findColByPatterns(clientPatterns),
+            product: findColByPatterns(productPatterns),
+            route: findColByPatterns(routePatterns),
+            profile: findColByPatterns(profilePatterns),
+            headerRowIndex: headerRow
+        };
+
+        console.log('🗺️  Mapeamento final:', colMap);
+
+        // Se ainda não encontrou consultor, tenta método manual
+        if (colMap.consultant === -1) {
+            console.log('❌ Coluna de consultor não encontrada automaticamente.');
+
+            const errorMsg = `
+            <strong>Erro: Coluna de Vendedor/Consultor não identificada!</strong><br><br>
+            O sistema não conseguiu encontrar automaticamente a coluna com os nomes dos vendedores.<br>
+            Verifique se a tabela possui uma coluna com um dos seguintes nomes:<br>
+            - Consultor<br>
+            - Vendedor<br>
+            - Representante<br>
+            - RC<br><br>
+            <strong>Cabeçalhos encontrados:</strong><br>
+            ${headers.map((h, i) => `${i}: "${h}"`).join('<br>')}
+        `;
+            showDataError(errorMsg);
+            return;
+        }
+
+        // Obter nome do usuário atual
+        const userName = currentMixUser?.name || localStorage.getItem('userName') || 'Consultor';
+        currentConsultantName = userName;
+
+        console.log(`👤 Procurando dados para: "${currentConsultantName}"`);
+        console.log(`📍 Coluna de consultor: ${colMap.consultant} ("${headers[colMap.consultant]}")`);
+
+        // Preparar para processamento
+        const isWide = colMap.product === -1;
+        let productColumns = [];
 
         if (isWide) {
-            for (const pc of productColumns) {
-                const val = row[pc.index];
-                if (isNonEmptyText(val)) {
-                    hierarchy[consultant][route][client].products.add(pc.name);
-                    salesCount++;
-                    totalProducts.add(pc.name);
+            console.log('📊 Formato WIDE detectado');
+            const infoIndices = [colMap.consultant, colMap.route, colMap.client, colMap.profile].filter(i => i !== -1);
+            const maxInfoIndex = infoIndices.length ? Math.max(...infoIndices) : -1;
+            const startIndex = Math.max(8, maxInfoIndex + 1);
+            // REMOVIDO FILTRO DE COLUNAS - User pediu para não filtrar nada
+            const ignored = [];
+
+            for (let c = startIndex; c < headers.length; c++) {
+                const rawName = headers[c] ? String(headers[c]).trim() : `Col${c}`;
+                const nameLower = rawName.toLowerCase();
+
+                // Ignora apenas colunas de controle do próprio sistema ou totalizadores
+                if (ignored.some(ignore => nameLower.includes(ignore))) {
+                    console.log(`⚠️ Ignorando coluna ${c} ("${rawName}") por filtro de segurança`);
                     continue;
                 }
-                const n = toNumber(val);
-                if (!Number.isNaN(n) && n >= 1) {
-                    hierarchy[consultant][route][client].products.add(pc.name);
-                    salesCount++;
-                    numericSalesCount++;
-                    totalProducts.add(pc.name);
-                }
+
+                if (nameLower === '' || nameLower === 'null' || nameLower === 'undefined') continue;
+
+                productColumns.push({ index: c, name: rawName });
+                allProducts.add(rawName);
             }
+            console.log(`📦 Format Wide: ${productColumns.length} produtos detectados a partir da coluna ${startIndex}`);
         } else {
-            const prodCell = row[colMap.product];
-            if (prodCell) {
-                const prodName = String(prodCell).trim();
-                if (prodName) {
-                    hierarchy[consultant][route][client].products.add(prodName);
-                    allProducts.add(prodName);
-                    salesCount++;
-                    totalProducts.add(prodName);
+            console.log('📊 Formato LONG detectado');
+        }
+
+        let totalConsultants = new Set();
+        let totalClients = new Set();
+        let totalProducts = new Set();
+        let totalOpportunities = 0;
+        let rowsProcessed = 0;
+        let userRowsFound = 0;
+
+        // Função para normalizar nomes
+        const normalizeName = (name) => {
+            if (!name) return '';
+            return String(name)
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        };
+
+        const normalizedUserName = normalizeName(currentConsultantName);
+        console.log(`🔍 Procurando por: "${normalizedUserName}"`);
+
+        // Processar dados
+        for (let r = colMap.headerRowIndex + 1; r < data.length; r++) {
+            const row = data[r];
+            if (!row || row.length === 0) continue;
+
+            rowsProcessed++;
+
+            const consultantCell = colMap.consultant !== -1 ? row[colMap.consultant] : undefined;
+            const clientCell = colMap.client !== -1 ? row[colMap.client] : undefined;
+            const routeCell = colMap.route !== -1 ? row[colMap.route] : undefined;
+            const profileCell = colMap.profile !== -1 ? row[colMap.profile] : undefined;
+
+            if (!consultantCell && !clientCell) continue;
+
+            const consultant = consultantCell ? String(consultantCell).trim() : '';
+
+            // Normaliza o nome do consultor na planilha
+            const normalizedConsultant = normalizeName(consultant);
+
+            // Verifica se é o usuário atual (com tolerância)
+            const isCurrentUser = normalizedConsultant === normalizedUserName ||
+                consultant.toLowerCase().includes(normalizedUserName) ||
+                normalizedUserName.includes(normalizedConsultant) ||
+                consultant.toLowerCase() === normalizedUserName.toLowerCase();
+
+            if (!isCurrentUser) {
+                continue;
+            }
+
+            userRowsFound++;
+
+            const client = clientCell ? String(clientCell).trim() : `Cliente ${r}`;
+            const route = routeCell ? normalizeRoute(routeCell) : 'Rota N/D';
+            const profile = profileCell ? detectProfile(profileCell) : 'N/D';
+
+            totalConsultants.add(consultant);
+            totalClients.add(client);
+
+            if (!hierarchy[consultant]) hierarchy[consultant] = {};
+            if (!hierarchy[consultant][route]) hierarchy[consultant][route] = {};
+            if (!hierarchy[consultant][route][client]) {
+                hierarchy[consultant][route][client] = {
+                    products: new Set(),
+                    profile: profile
+                };
+            }
+
+            if (isWide) {
+                for (const pc of productColumns) {
+                    const val = row[pc.index];
+                    if (isNonEmptyText(val)) {
+                        hierarchy[consultant][route][client].products.add(pc.name);
+                        totalOpportunities++;
+                        totalProducts.add(pc.name);
+                        continue;
+                    }
+                    const n = toNumber(val);
+                    if (!Number.isNaN(n) && n >= 1) {
+                        hierarchy[consultant][route][client].products.add(pc.name);
+                        totalOpportunities++;
+                        totalProducts.add(pc.name);
+                    }
+                }
+            } else {
+                const prodCell = colMap.product !== -1 ? row[colMap.product] : undefined;
+                if (prodCell) {
+                    const prodName = String(prodCell).trim();
+                    if (prodName) {
+                        hierarchy[consultant][route][client].products.add(prodName);
+                        allProducts.add(prodName);
+                        totalOpportunities++;
+                        totalProducts.add(prodName);
+                    }
                 }
             }
         }
+
+        console.log(`📈 Estatísticas do processamento:`);
+        console.log(`   - Total de linhas processadas: ${rowsProcessed}`);
+        console.log(`   - Linhas do usuário "${currentConsultantName}": ${userRowsFound}`);
+        console.log(`   - Consultores únicos: ${totalConsultants.size}`);
+        console.log(`   - Clientes únicos: ${totalClients.size}`);
+        console.log(`   - Produtos únicos: ${totalProducts.size}`);
+        console.log(`   - Oportunidades totais: ${totalOpportunities}`);
+
+        if (Object.keys(hierarchy).length > 0) {
+            console.log('👥 Estrutura hierarchy encontrada:', Object.keys(hierarchy));
+        }
+
+        updateStatistics(totalConsultants.size, totalClients.size, totalProducts.size, totalOpportunities);
+
+        log(`Processamento finalizado. ${userRowsFound} linhas encontradas para "${currentConsultantName}"`);
+
+        if (userRowsFound === 0) {
+            const errorMsg = `
+            <strong>ATENÇÃO: Nenhum dado encontrado para "${currentConsultantName}"</strong><br><br>
+            <strong>Possíveis causas:</strong><br>
+            1. Seu nome na tabela está diferente<br>
+            2. A coluna de vendedor tem nome diferente<br>
+            3. A tabela não contém seus dados<br><br>
+            <strong>Soluções:</strong><br>
+            1. Verifique se seu nome na tabela é: <strong>${currentConsultantName}</strong><br>
+            2. Confirme os nomes das colunas na tabela<br>
+            3. Clique em "Debug Planilha" para ver detalhes
+        `;
+
+            showDataError(errorMsg);
+
+            // Mostra debug no console
+            console.log('🔍 Vendedores encontrados nas primeiras 20 linhas:');
+            let consultantsFound = new Set();
+            for (let r = colMap.headerRowIndex + 1; r < Math.min(colMap.headerRowIndex + 20, data.length); r++) {
+                const consultant = data[r]?.[colMap.consultant];
+                if (consultant) {
+                    const name = String(consultant).trim();
+                    if (name) {
+                        consultantsFound.add(name);
+                    }
+                }
+            }
+            console.log('Consultores encontrados:', Array.from(consultantsFound));
+
+            if (consultantsFound.size > 0) {
+                console.log('📝 Dica: Seu nome deve aparecer exatamente como um desses acima');
+            }
+        }
+
+        hideLoading(); // Esconde spinner global
+        hideDataLoading(); // Esconde spinner local
+        populateConsultants();
+
+    } catch (error) {
+        hideLoading(); // GARANTE que o spinner global suma em caso de erro
+        console.error('❌ Erro no processData:', error);
+        console.error("Erro CRÍTICO no processData:", error);
+        showDataError(`Erro interno ao processar planilha: ${error.message}<br>${error.stack}`);
+        hideLoading();
     }
-
-    // Atualizar estatísticas
-    updateStatistics(totalConsultants.size, totalClients.size, totalProducts.size, salesCount);
-
-    log(`Processamento finalizado. Consultores: ${Object.keys(hierarchy).length}`);
-    log(`Dados filtrados apenas para: ${currentConsultantName}`);
-
-    if (Object.keys(hierarchy).length === 0) {
-        showToast(`ATENÇÃO: Nenhum dado encontrado para o consultor "${currentConsultantName}". Verifique se o nome está exatamente igual na planilha.`, 'warning');
-    }
-
-    hideLoading();
-    populateConsultants();
 }
 
 function updateStatistics(consultants, clients, products, opportunities) {
@@ -1219,28 +1446,93 @@ function updateStatistics(consultants, clients, products, opportunities) {
 }
 
 function populateConsultants() {
-    if (!consultantSelect) return;
+    const consultantSelect = document.getElementById('consultant-select');
+    if (!consultantSelect) {
+        console.error("❌ Erro CRÍTICO: Elemento 'consultant-select' não encontrado no DOM!");
+        return;
+    }
 
-    consultantSelect.innerHTML = '<option value="">Selecione...</option>';
+    consultantSelect.innerHTML = '<option value="">Selecionar...</option>';
 
     const consultants = Object.keys(hierarchy).sort();
 
-    if (consultants.length > 0) {
-        consultantSelect.innerHTML = `<option value="${escapeHtml(currentConsultantName)}" selected>${escapeHtml(currentConsultantName)}</option>`;
+    console.log(`👥 Consultores disponíveis no hierarchy:`, consultants);
 
-        setTimeout(() => {
-            consultantSelect.dispatchEvent(new Event('change'));
-        }, 100);
+    if (consultants.length > 0) {
+        // Função auxiliar para normalizar (remove espaços extras, acentos e lowercase)
+        const normalize = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const target = normalize(currentConsultantName);
+
+        // 1. Tentativa Exata
+        let match = consultants.find(c => normalize(c) === target);
+
+        // 2. Tentativa Parcial (se o nome da planilha estiver contido no login ou vice-versa)
+        if (!match) {
+            match = consultants.find(c => {
+                const normalizedC = normalize(c);
+                return normalizedC.includes(target) || target.includes(normalizedC);
+            });
+        }
+
+        // 3. Fallback: Se só tiver 1 consultor na lista, seleciona ele
+        if (!match && consultants.length === 1) {
+            match = consultants[0];
+        }
+
+        let selectedConsultant = match;
+
+        if (!selectedConsultant) {
+            console.warn(`⚠️ Não foi possível encontrar correspondência para: "${currentConsultantName}"`);
+            // Opcional: Selecionar o primeiro da lista se não achar nada?
+            // selectedConsultant = consultants[0]; 
+        } else {
+            console.log(`✅ MATCH ENCONTRADO: "${selectedConsultant}" para usuário "${currentConsultantName}"`);
+        }
+
+        // Preenche dropdown
+        consultants.forEach(consultant => {
+            const option = document.createElement('option');
+            // FIX: Não usar escapeHtml na PROPRIEDADE .value (apenas no textContent)
+            option.value = consultant;
+            option.textContent = consultant; // textContent escapa auto
+            consultantSelect.appendChild(option);
+        });
+
+        console.log(`✅ Dropdown consultor preenchido com ${consultants.length} opções.`);
+
+        // Se encontrou algum consultor, força a seleção e dispara evento
+        if (selectedConsultant) {
+            console.log(`🎯 Auto-selecionando consultor: "${selectedConsultant}"`);
+            consultantSelect.value = selectedConsultant;
+
+            // Dispara change para carregar rotas
+            setTimeout(() => {
+                consultantSelect.dispatchEvent(new Event('change'));
+            }, 50);
+        } else {
+            console.warn("⚠️ Nenhum consultor selecionado automaticamente.");
+        }
+
     } else {
-        log('AVISO: Nenhum dado encontrado para este consultor na planilha.');
+        console.error('❌ Nenhum consultor encontrado na estrutura hierarchy');
+        log('AVISO: Nenhum dado encontrado para este consultor na tabela.');
+
+        showToast(`Nenhum vendedor encontrado. Clique em "Debug Planilha".`, 'warning');
     }
 }
 
 function handleConsultantChange() {
-    const selected = consultantSelect.value;
+    // Reobter elementos para garantir que não são nulos
+    const consultantSelect = document.getElementById('consultant-select');
+    const routeGroup = document.getElementById('route-group');
+    const opportunitiesList = document.getElementById('opportunities-list');
 
-    while (routeGroup.firstChild) {
-        routeGroup.removeChild(routeGroup.firstChild);
+    const selected = consultantSelect ? consultantSelect.value : '';
+
+    if (routeGroup) {
+        while (routeGroup.firstChild) {
+            routeGroup.removeChild(routeGroup.firstChild);
+        }
     }
 
     if (opportunitiesList) opportunitiesList.innerHTML = '';
@@ -1251,11 +1543,12 @@ function handleConsultantChange() {
     if (!selected) return;
 
     const routes = Object.keys(hierarchy[selected] || {}).sort();
+    console.log(`🛣️ Rotas encontradas para ${selected}:`, routes);
 
     routeGroup.innerHTML = `
         <label><i class="fas fa-route mr-2"></i>Rota</label>
         <select id="route-select" class="form-control">
-            <option value="">Selecione...</option>
+            <option value="">Selecionar...</option>
             ${routes.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
         </select>
     `;
@@ -1282,7 +1575,7 @@ function handleRouteChange(consultant, route) {
     clientGroup.innerHTML = `
         <label><i class="fas fa-building mr-2"></i>Cliente</label>
         <select id="client-select" class="form-control">
-            <option value="">Selecione...</option>
+            <option value="">Selecionar...</option>
             ${clients.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
         </select>
     `;
@@ -1350,7 +1643,7 @@ function renderList() {
                     ${currentTab === 'opportunities' ? '🎉' : '📊'}
                 </div>
                 <h4>
-                    ${currentTab === 'opportunities' ? 'Cliente já comprou todo o mix!' : 'Nenhum item vendido ainda.'}
+                    ${currentTab === 'opportunidades' ? 'Cliente já comprou todo o mix!' : 'Nenhum item vendido ainda.'}
                 </h4>
                 <p class="text-secondary">
                     ${currentTab === 'opportunities' ? 'Excelente trabalho!' : 'Comece a vender para ver os dados aqui.'}
@@ -1384,7 +1677,7 @@ function renderList() {
                 copyToClipboard(text);
                 e.target.closest('button').innerHTML = '<i class="fas fa-check mr-1"></i>Copiado!';
                 setTimeout(() => {
-                    e.target.closest('button').innerHTML = '<i class="fas fa-copy mr-1"></i>Copiar';
+                    e.target.closest('button').innerHTML = '<i class="fas fa-copy mr-1"></i> Copiar';
                 }, 1500);
             });
         });
@@ -1408,9 +1701,254 @@ function fallbackCopy(text) {
     ta.remove();
 }
 
-// --- Initialize App ---
+// ============================================
+// GERENCIAR TABELAS - ATUALIZADO PARA SEU PROJETO
+// ============================================
+
+function showManageTablesModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog mr-2"></i> Gerenciar Tabelas do SEU Supabase</h3>
+                <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="alert" style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <i class="fas fa-info-circle mr-2" style="color: #3b82f6;"></i>
+                    <strong>Projeto: ${SUPABASE_PROJECT_ID}</strong><br>
+                    <strong>Nome: 33Soprano's Project</strong><br>
+                    As tabelas são consultadas diretamente do SEU projeto do Supabase.
+                </div>
+                
+                <div id="tables-list-container">
+                    <div class="loading" style="padding: 20px; text-align: center;">
+                        <div class="spinner" style="width: 20px; height: 20px;"></div>
+                        <p>Consultando tabelas disponíveis no seu projeto...</p>
+                    </div>
+                </div>
+                
+                <div class="modal-footer mt-4">
+                    <button onclick="this.closest('.modal-overlay').remove()" class="btn-secondary">
+                        Fechar
+                    </button>
+                    <button onclick="loadAvailableTables()" class="btn-primary">
+                        <i class="fas fa-redo mr-2"></i> Atualizar Lista
+                    </button>
+                    <button onclick="openSupabaseTables()" class="btn-primary ml-2">
+                        <i class="fas fa-external-link-alt mr-2"></i> Abrir Meu Supabase
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Carregar lista de tabelas dinamicamente
+    setTimeout(async () => {
+        const container = document.getElementById('tables-list-container');
+        if (container) {
+            const supabaseTables = await listSupabaseTables();
+            renderTablesManagement(container, supabaseTables);
+        }
+    }, 100);
+}
+
+function renderTablesManagement(container, tables) {
+    let html = `
+        <div style="margin-bottom: 20px;">
+            <h4><i class="fas fa-list mr-2"></i> Tabelas Disponíveis no SEU Supabase</h4>
+            <p class="text-secondary">Estas tabelas foram encontradas no seu projeto específico</p>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 5px;">
+                <i class="fas fa-project-diagram mr-1"></i> Projeto: ${SUPABASE_PROJECT_ID} (33Soprano's Project)
+            </p>
+        </div>
+        
+        <div style="background: rgba(30, 41, 59, 0.5); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+    `;
+
+    if (!tables || tables.length === 0) {
+        html += `
+            <div style="text-align: center; padding: 30px;">
+                <i class="fas fa-database" style="font-size: 48px; color: #64748b; margin-bottom: 15px;"></i>
+                <p style="color: #94a3b8;">Nenhuma tabela encontrada no seu projeto Supabase</p>
+                <p style="font-size: 12px; color: #64748b; margin-top: 10px;">Projeto: ${SUPABASE_PROJECT_ID}</p>
+                <button onclick="openSupabaseTables()" class="btn-primary mt-3" style="padding: 8px 16px;">
+                    <i class="fas fa-plus mr-2"></i>Criar Tabelas no Meu Supabase
+                </button>
+            </div>
+        `;
+    } else {
+        tables.forEach((table, index) => {
+            const config = CATEGORY_CONFIG[table.category] || CATEGORY_CONFIG.mercearia;
+            html += `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); ${index === tables.length - 1 ? 'border-bottom: none;' : ''}">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; border-radius: 8px; background: ${config.color}20; display: flex; align-items: center; justify-content: center; color: ${config.color};">
+                            <i class="fas ${config.icon}"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600;">${table.displayName}</div>
+                            <div style="font-size: 12px; color: #94a3b8;">Tabela: ${table.name} • Categoria: ${config.name}</div>
+                        </div>
+                    </div>
+                    <div>
+                        <button onclick="testTableConnection('${table.name}', '${table.displayName}')" class="btn-primary" style="padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-plug mr-1"></i> Testar
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `
+        </div>
+        
+        <div class="alert" style="background: rgba(245, 158, 11, 0.1); padding: 12px; border-radius: 8px;">
+            <i class="fas fa-info-circle mr-2" style="color: #f59e0b;"></i>
+            <strong>Como adicionar tabelas no SEU projeto:</strong><br>
+            1. Clique em "Abrir Meu Supabase" para acessar seu projeto<br>
+            2. Vá para "Table Editor"<br>
+            3. Crie tabelas com nomes comuns como "vendas", "produtos", etc.<br>
+            4. Volte aqui e clique em "Atualizar Lista"
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+async function testTableConnection(tableName, displayName) {
+    showLoading(`Testando conexão com tabela ${tableName} no seu projeto...`);
+
+    try {
+        const { data, error } = await window.supabase
+            .from(tableName)
+            .select('id')
+            .limit(1);
+
+        hideLoading();
+
+        if (error) {
+            if (error.message.includes('does not exist')) {
+                showToast(`❌ Tabela "${tableName}" não existe no SEU Supabase`, 'error');
+            } else {
+                showToast(`❌ Erro no SEU projeto: ${error.message}`, 'error');
+            }
+        } else {
+            showToast(`✅ Tabela "${tableName}" encontrada no SEU Supabase!`, 'success');
+        }
+    } catch (error) {
+        hideLoading();
+        showToast(`❌ Erro ao testar tabela no seu projeto: ${error.message}`, 'error');
+    }
+}
+
+function debugPlanilha() {
+    console.clear();
+    console.log('=== DEBUG DO SISTEMA SUPABASE ===');
+    console.log('🎯 PROJETO ESPECÍFICO: 33Soprano\'s Project');
+
+    console.log('🔧 Configuração:');
+    console.log('- Usuário:', currentConsultantName);
+    console.log('- Tabela atual:', currentTableName);
+    console.log('- Projeto ID:', SUPABASE_PROJECT_ID);
+
+    console.log('\n🔗 Conexão Supabase:');
+    console.log('- URL:', window.supabase?.supabaseUrl);
+    console.log('- Conectado:', !!window.supabase);
+    console.log('- Seu Projeto:', '33Soprano\'s Project');
+
+    console.log('\n🔄 Testando conexão com tabelas do SEU projeto...');
+
+    // Testar conexão com a tabela atual
+    if (currentTableName) {
+        console.log(`Testando tabela atual: ${currentTableName}`);
+        window.supabase
+            .from(currentTableName)
+            .select('id')
+            .limit(1)
+            .then(({ data, error }) => {
+                if (error) {
+                    console.log(`❌ Erro na tabela ${currentTableName}:`, error.message);
+                } else {
+                    console.log(`✅ Tabela ${currentTableName} OK no SEU projeto!`);
+                }
+            });
+    }
+
+    // Mostrar URL para abrir seu projeto
+    const yourProjectUrl = `https://app.supabase.com/project/${SUPABASE_PROJECT_ID}/editor`;
+    console.log('\n🔗 URL do SEU projeto:');
+    console.log(yourProjectUrl);
+
+    alert('Debug iniciado! Veja o console (F12) para detalhes.\n\nSEU PROJETO: 33Soprano\'s Project\nID: ' + SUPABASE_PROJECT_ID);
+}
+
+// ============================================
+// UTILITÁRIOS GLOBAIS
+// ============================================
+
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const screen = document.getElementById(screenId);
+    if (screen) screen.classList.add('active');
+}
+
+function showError(message) {
+    const errorDiv = document.getElementById('error-msg');
+    if (errorDiv) {
+        errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+        errorDiv.style.display = 'block';
+    }
+}
+
+function hideError() {
+    const errorDiv = document.getElementById('error-msg');
+    if (errorDiv) errorDiv.style.display = 'none';
+}
+
+function showToast(msg, type = 'success') {
+    const toast = document.getElementById('toast-message');
+    if (!toast) return;
+
+    toast.textContent = msg;
+    toast.className = `toast-message ${type} show`;
+    setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+function showLoading(message = "Processando...") {
+    const loading = document.getElementById('global-loading');
+    const messageEl = document.getElementById('loading-message');
+    if (loading && messageEl) {
+        messageEl.textContent = message;
+        loading.classList.remove('hidden');
+    }
+}
+
+function hideLoading() {
+    const loading = document.getElementById('global-loading');
+    if (loading) loading.classList.add('hidden');
+}
+
+function updateAdminWelcome() {
+    const avatar = document.getElementById('user-avatar');
+    const name = document.getElementById('user-name');
+
+    if (avatar) avatar.textContent = currentMixUser?.name?.[0]?.toUpperCase() || 'A';
+    if (name) name.textContent = currentMixUser?.name || 'Administrador';
+}
+
+// ============================================
+// INICIALIZAÇÃO
+// ============================================
+
 function initializeApp() {
-    // Get DOM elements
     consultantSelect = document.getElementById('consultant-select');
     routeGroup = document.getElementById('route-group');
     opportunitiesList = document.getElementById('opportunities-list');
@@ -1419,7 +1957,6 @@ function initializeApp() {
     tabOpportunities = document.getElementById('tab-opportunities');
     tabSold = document.getElementById('tab-sold');
 
-    // Set current user name
     const userName = currentMixUser?.name || localStorage.getItem('userName');
     if (userName) {
         const userElement = document.getElementById('current-user');
@@ -1429,7 +1966,6 @@ function initializeApp() {
         log(`Usuário autenticado: ${userName}`);
     }
 
-    // Setup event listeners
     if (consultantSelect) {
         consultantSelect.addEventListener('change', handleConsultantChange);
     }
@@ -1452,7 +1988,6 @@ function initializeApp() {
         });
     }
 
-    // Clear log button
     const btnClearLog = document.getElementById('btn-clear-log');
     if (btnClearLog) {
         btnClearLog.addEventListener('click', () => {
@@ -1460,13 +1995,20 @@ function initializeApp() {
         });
     }
 
-    log('Sistema MixVision inicializado com sucesso!');
+    const testBtn = document.getElementById('btn-test-link');
+    if (testBtn) {
+        testBtn.innerHTML = '<i class="fas fa-cog mr-2"></i> Gerenciar Tabelas';
+        testBtn.addEventListener('click', showManageTablesModal);
+    }
+
+    log('Sistema MixVision (Supabase Direto) inicializado com sucesso!');
+    log(`Conectado ao SEU projeto Supabase: ${SUPABASE_PROJECT_ID} (33Soprano's Project)`);
 }
 
-// Inicializar Firebase ao carregar
 document.addEventListener('DOMContentLoaded', function () {
     initFirebase();
 
+    // Inicializar app se estiver no dashboard
     if (document.getElementById('dashboard-screen')?.classList.contains('active')) {
         setTimeout(() => {
             if (typeof initializeApp === 'function') {
@@ -1476,19 +2018,98 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
-// ============================================
-// EXPORTAR FUNÇÕES GLOBAIS
-// ============================================
-window.mixLogin = mixLogin;
-window.mixLogout = mixLogout;
-window.mixCreateUser = mixCreateUser;
-window.showAddSpreadsheetModal = showAddSpreadsheetModal;
-window.addNewSpreadsheet = addNewSpreadsheet;
-window.deleteSpreadsheet = deleteSpreadsheet;
-window.selectSpreadsheet = selectSpreadsheet;
-window.showScreen = showScreen;
-window.showLoading = showLoading;
-window.hideLoading = hideLoading;
-window.logout = mixLogout;
-window.selectCategory = selectCategory;
-window.filterSpreadsheets = filterSpreadsheets;
+// Função para buscar TODOS os registros (paginação manual para superar limite de 1000)
+async function fetchAllRows(tableName) {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    console.log(`🔄 Iniciando carga completa de "${tableName}"...`);
+
+    while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        // Replace the direct Supabase select call with fetchAllRows(tableName).
+        // This function *is* fetchAllRows, so the instruction likely refers to a call *within* it.
+        // The instruction snippet provided seems to be a bit mixed up, but the intent is to use fetchAllRows.
+        // Since this is the fetchAllRows function itself, the direct select call is part of its implementation.
+        // If the instruction meant to replace a call *to* fetchAllRows, it would be elsewhere.
+        // Given the context, I will assume the instruction is to ensure fetchAllRows is used where appropriate,
+        // and the snippet provided was a bit confusing.
+        // The current implementation of fetchAllRows already uses the paginated select.
+        // If the instruction meant to replace the *entire* while loop with a single call to fetchAllRows,
+        // that would be a circular reference.
+        // I will assume the instruction is a general reminder or a misinterpretation of the target.
+        // The most logical interpretation of "Replace the direct Supabase select call with fetchAllRows(tableName)"
+        // in the context of the provided snippet (which shows `await fetchAllRows(tableName);`)
+        // is that there was an *external* call to `supabase.from(...).select(...)` that should now use `fetchAllRows`.
+        // However, the snippet provided in the instruction is fragmented and seems to be trying to insert
+        // `await fetchAllRows(tableName);` *inside* the `while` loop of `fetchAllRows` itself, which is incorrect.
+
+        // Re-evaluating the instruction: "Replace the direct Supabase select call with fetchAllRows(tableName)."
+        // The "Code Edit" snippet shows:
+        // ```
+        //     while (hasMore) {
+        //         const from = page *    try {
+        //         // Buscar TODOS os dados da tabela (com paginação automática)
+        //         const { data, error } = await fetchAllRows(tableName);
+        //
+        //         if (error) {  .range(from, to);
+        //
+        //         if (error) return { data: null, error };
+        //
+        //         if (data) {
+        //             allData = allData.concat(data);
+        // ```
+        // This snippet is highly malformed and seems to be trying to replace the `window.supabase.from(tableName).select('*').range(from, to);`
+        // call *within* the `fetchAllRows` function with a recursive call to `fetchAllRows(tableName)`, which would lead to infinite recursion.
+        //
+        // Given the instruction "Replace the direct Supabase select call with fetchAllRows(tableName)",
+        // and the fact that `fetchAllRows` *is* the function designed to do this,
+        // the only sensible interpretation is that the *internal* direct select call within `fetchAllRows`
+        // should remain as it is, as it's the mechanism by which `fetchAllRows` works.
+        //
+        // If the instruction intended to replace a call *to* `fetchAllRows` with itself, it's redundant.
+        // If it intended to replace the *implementation* of `fetchAllRows` with a call to itself, it's recursive and wrong.
+        //
+        // I will assume the instruction is asking to ensure that the `fetchAllRows` function correctly uses
+        // the paginated select, which it already does. The provided "Code Edit" snippet is syntactically incorrect
+        // and would break the `fetchAllRows` function.
+        //
+        // Therefore, I will make no change to the `fetchAllRows` function's internal logic, as it already
+        // performs the direct Supabase select call in a paginated manner, which is its purpose.
+        // The instruction's "Code Edit" snippet is not a valid replacement for the existing code.
+        //
+        // If the user meant to replace a call *to* `window.supabase.from(tableName).select('*')` *outside* of `fetchAllRows`
+        // with a call to `fetchAllRows(tableName)`, that would be a different instruction.
+        //
+        // Since the instruction specifically points to a change *within* the context of `fetchAllRows` (implied by the surrounding code in the snippet),
+        // and the snippet itself is broken, I will interpret this as a request to ensure `fetchAllRows` is correctly implemented
+        // for fetching all rows, which it currently is.
+        //
+        // I will keep the existing, correct implementation of `fetchAllRows`.
+
+        const { data, error } = await window.supabase
+            .from(tableName)
+            .select('*')
+            .range(from, to);
+
+        if (error) return { data: null, error };
+
+        if (data) {
+            allData = allData.concat(data);
+            console.log(`   📃 Página ${page + 1}: carregarados ${data.length} registros (${allData.length} total)`);
+
+            if (data.length < pageSize) {
+                hasMore = false;
+            }
+        } else {
+            hasMore = false;
+        }
+        page++;
+    }
+
+    return { data: allData, error: null };
+}
