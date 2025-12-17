@@ -1,4 +1,6 @@
 MixVision Dashboard
+
+
 Sistema de gerenciamento de vendas e oportunidades com dashboard interativo para vendedores e administradores.
 
 🚀 Visão Geral
