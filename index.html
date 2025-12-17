@@ -214,6 +214,10 @@
                     <p class="subtitle">Gerenciamento de Vendedores e Planilhas</p>
                 </div>
                 <div class="header-right">
+                    <button onclick="showScreen('performance-screen'); loadPerformanceDashboard()" class="btn-secondary"
+                        style="margin-right: 10px;">
+                        <i class="fas fa-chart-pie"></i> Performance
+                    </button>
                     <div class="user-welcome">
                         <div class="user-avatar" id="user-avatar">A</div>
                         <div>
@@ -293,6 +297,10 @@
                     <p class="subtitle" id="spreadsheet-help">Selecione uma planilha para analisar oportunidades</p>
                 </div>
                 <div class="header-right">
+                    <button onclick="showScreen('performance-screen'); loadPerformanceDashboard()" class="btn-secondary"
+                        style="margin-right: 10px;">
+                        <i class="fas fa-chart-pie"></i> Performance
+                    </button>
                     <div class="user-welcome" id="user-welcome">
                         <div class="user-avatar" id="dashboard-user-avatar">V</div>
                         <div>
@@ -463,18 +471,68 @@
                     <button id="btn-clear-log" class="btn-primary">
                         <i class="fas fa-broom"></i> Limpar Logs
                     </button>
-                    <!-- BOTÃO DE TESTE ADICIONADO AQUI -->
-                    <button id="btn-test-link" class="btn-primary" style="background: #3b82f6;">
-                        <i class="fas fa-vial"></i> Testar Link OneDrive
-                    </button>
-                    <button onclick="debugPlanilha()" class="btn-primary" style="background: #8b5cf6;">
-                        <i class="fas fa-bug"></i> Debug Planilha
-                    </button>
                 </div>
                 <div class="log-container">
                     <pre id="debug-log"></pre>
                 </div>
             </section>
+        </div>
+    </div>
+
+    <!-- DASHBOARD PERFORMANCE -->
+    <div id="performance-screen" class="screen">
+        <div class="app-container">
+            <header class="app-header">
+                <div class="header-left">
+                    <h1>
+                        <i class="fas fa-trophy"></i>
+                        Minha Performance
+                    </h1>
+                    <p class="subtitle">Acompanhe seu desempenho e metas</p>
+                </div>
+                <div class="header-right" style="display: flex; gap: 10px; align-items: center;">
+                    <select id="perf-day-filter" class="glass-select">
+                        <option value="Todos">📅 Todos os Dias</option>
+                        <option value="Segunda">Segunda-feira</option>
+                        <option value="Terça">Terça-feira</option>
+                        <option value="Quarta">Quarta-feira</option>
+                        <option value="Quinta">Quinta-feira</option>
+                        <option value="Sexta">Sexta-feira</option>
+                        <option value="Sábado">Sábado</option>
+                    </select>
+                    <button onclick="loadDashboardScreen()" class="btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Voltar
+                    </button>
+                </div>
+            </header>
+
+            <!-- Resumo Geral -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="perf-total-opportunities">0</div>
+                    <div class="stat-label">Total Oportunidades</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value text-green-400" id="perf-worked">0</div>
+                    <div class="stat-label">Produtos trabalhados esse mês</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="perf-coverage">0%</div>
+                    <div class="stat-label">Cobertura de Mix</div>
+                </div>
+            </div>
+
+            <div class="form-row" style="align-items: flex-start;">
+                <!-- Últimas Ações (Expandido) -->
+                <div class="card flex-1">
+                    <div class="card-header">
+                        <h3><i class="fas fa-history"></i> Histórico Recente</h3>
+                    </div>
+                    <div id="recent-actions-list" class="opportunity-grid" style="grid-template-columns: 1fr;">
+                        <p class="text-secondary text-center">Nenhuma ação registrada ainda.</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
