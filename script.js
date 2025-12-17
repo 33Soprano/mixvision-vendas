@@ -985,6 +985,10 @@ function showDataError(message) {
 // SISTEMA DE PROCESSAMENTO DE DADOS
 // ============================================
 
+// ============================================
+// SISTEMA DE PROCESSAMENTO DE DADOS
+// ============================================
+
 let allProducts = new Set();
 let hierarchy = {};
 let currentTab = 'opportunities';
@@ -993,8 +997,262 @@ let currentMissing = [];
 let currentSold = [];
 let currentConsultantName = '';
 
+// NOVO: Controle de Produtos Trabalhados
+let currentWorkedProducts = new Set();
+let currentClientName = '';
+let currentPeriod = '';
+let globalPerformanceCache = null; // Cache para evitar requisições repetidas
+
 let consultantSelect, routeGroup, opportunitiesList, debugLog;
 let resultsTitle, tabOpportunities, tabSold;
+
+// Função auxiliar para analisar dados sem afetar a UI principal
+function analyzeTableData(rows, targetUser, dayFilter = 'Todos') {
+    if (!rows || rows.length === 0) return { ops: 0, sold: 0 };
+
+    let totalOps = 0;
+    let totalSold = 0;
+
+    // Helper para log na tela se disponível, senão console
+    const debug = (msg) => {
+        console.log(msg);
+        if (typeof log === 'function') log(`[Perf] ${msg}`);
+    };
+
+    try {
+        debug(`Iniciando análise para: ${targetUser}. Linhas totais: ${rows.length}`);
+
+        // DETECÇÃO DE CABEÇALHO (Cópia simplificada do processData)
+        const maxScan = Math.min(50, rows.length);
+        let headerRow = -1;
+
+        // 1. Procura por "Consultor"
+        for (let r = 0; r < maxScan; r++) {
+            const row = rows[r] || [];
+            for (let c = 0; c < row.length; c++) {
+                const cell = row[c] ? String(row[c]).trim().toLowerCase() : '';
+                if (cell === 'consultor' || cell === 'consultor(a)' || cell === 'vendedor' || cell === 'rc') {
+                    headerRow = r;
+                    break;
+                }
+            }
+            if (headerRow !== -1) break;
+        }
+
+        if (headerRow === -1) {
+            debug("⚠️ Cabeçalho 'Consultor' não detectado explicitamente. Tentando linha 0.");
+            headerRow = 0;
+        }
+
+        const headers = (rows[headerRow] || []).map(h => h ? String(h).trim() : '');
+
+        // Mapeamento de Colunas
+        const findCol = (patterns) => {
+            for (let i = 0; i < headers.length; i++) {
+                const h = headers[i].toLowerCase();
+                if (patterns.some(p => typeof p === 'string' ? h === p : p.test(h))) return i;
+            }
+            for (let i = 0; i < headers.length; i++) {
+                const h = headers[i].toLowerCase();
+                if (patterns.some(p => typeof p === 'string' ? h.includes(p) : false)) return i;
+            }
+            return -1;
+        };
+
+        const colConsultant = findCol(['consultor', 'vendedor', 'representante', 'rc']);
+        const colRoute = findCol(['rota', 'dia', 'visita', 'frequencia']);
+        const colProduct = findCol(['produto', 'item', 'sku', 'descri']);
+
+        if (colConsultant === -1) {
+            debug("❌ Coluna Consultor não encontrada nos headers: " + headers.join(', '));
+            return { ops: 0, sold: 0 };
+        }
+
+        const targetNormalized = targetUser.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+        // Forçar WIDE se o usuário pediu regra de coluna 8
+        const isWide = true;
+
+        let productCols = [];
+        let startIndex = 8;
+
+        if (isWide) {
+            const infoIndices = [colConsultant, colRoute, findCol(['cliente'])].filter(i => i !== -1);
+            // GARANTIR inicio após coluna 8 (index 8 = coluna 9)
+            startIndex = Math.max(8, (infoIndices.length ? Math.max(...infoIndices) + 1 : 8));
+
+            for (let c = startIndex; c < headers.length; c++) {
+                const name = headers[c];
+                // Ignorar colunas de TOTAL e META e vazias
+                if (name && name !== 'TOTAL' && !name.toLowerCase().includes('meta')) {
+                    productCols.push(c);
+                }
+            }
+            debug(`Colunas de produto detectadas: ${productCols.length} (Início índice ${startIndex})`);
+        }
+
+        // Processar Linhas
+        let rowsProcessed = 0;
+        let matchedConsultantCount = 0;
+
+        for (let r = headerRow + 1; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row) continue;
+
+            rowsProcessed++;
+            const consultant = row[colConsultant] ? String(row[colConsultant]).trim() : '';
+            const consNorm = consultant.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+            // Check Match
+            if (!consNorm.includes(targetNormalized) && !targetNormalized.includes(consNorm)) {
+                continue;
+            }
+
+            // 2. Verificar Filtro de Dia (Rota)
+            if (dayFilter !== 'Todos') {
+                if (colRoute !== -1) {
+                    const routeVal = row[colRoute] ? String(row[colRoute]).trim().toLowerCase() : '';
+
+                    // Normalização Forte (Remove acentos/cedilha): Terça -> terca
+                    const norm = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+                    const routeValNorm = norm(routeVal);
+                    const dayFilterNorm = norm(dayFilter.toLowerCase());
+
+                    if (!routeValNorm.includes(dayFilterNorm)) continue;
+                } else {
+                    continue; // Sem rota, ignora se tiver filtro
+                }
+            }
+
+            matchedConsultantCount++;
+
+            if (isWide) {
+                for (const pc of productCols) {
+                    const val = row[pc];
+
+                    // Lógica de "Oportunidade":
+                    // Se cell vazio, nulo, undefined -> Oportunidade
+                    // Se cell "0", "0.0", "0,0" -> Oportunidade (venda zero) -> User confirmou "linhas em branco", mas as vezes 0 conta
+                    // Vamos considerar vazio E zero como oportunidade para garantir
+
+                    let isSold = false;
+                    if (val !== undefined && val !== null) {
+                        const sVal = String(val).trim();
+                        if (sVal !== '' && sVal !== '0' && sVal !== '0.0' && sVal !== '0,0') {
+                            isSold = true;
+                        }
+                    }
+
+                    if (!isSold) {
+                        totalOps++;
+                    } else {
+                        totalSold++;
+                    }
+                }
+            }
+        }
+
+        debug(`Linhas: ${rowsProcessed}, Match: ${matchedConsultantCount}, Ops: ${totalOps}, Vendidos: ${totalSold}`);
+
+    } catch (e) {
+        debug("ERRO FATAL analyzeTableData: " + e.message);
+    }
+
+    return { ops: totalOps, sold: totalSold };
+}
+
+function getPeriodString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+async function loadActions(tableName) {
+    if (!currentConsultantName || !currentClientName) return;
+
+    currentPeriod = getPeriodString();
+    currentWorkedProducts = new Set();
+
+    console.log(`📥 Carregando ações para ${currentConsultantName} / ${currentClientName} (${currentPeriod})...`);
+
+    try {
+        const { data, error } = await window.supabase
+            .from('acoes_vendedores')
+            .select('produto, acao')
+            .eq('vendedor_nome', currentConsultantName) // Usando nome como ID por enquanto, ideal seria ID
+            .eq('cliente', currentClientName)
+            .eq('mes_ano', currentPeriod);
+
+        if (error) {
+            console.error("Erro ao carregar ações:", error);
+            return;
+        }
+
+        if (data) {
+            data.forEach(item => {
+                if (item.acao === 'trabalhado') {
+                    currentWorkedProducts.add(item.produto);
+                }
+            });
+            console.log(`✅ ${currentWorkedProducts.size} produtos trabalhados encontrados.`);
+        }
+    } catch (err) {
+        console.error("Exceção ao carregar ações:", err);
+    }
+}
+
+async function registerAction(productName, actionType) {
+    if (!currentMixUser) {
+        showToast("Erro: Usuário não autenticado", "error");
+        return;
+    }
+
+    // Otimistic UI Update
+    const btn = document.querySelector(`button[data-prod="${escapeHtml(productName)}"]`);
+    if (btn) {
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+    }
+
+    try {
+        const actionData = {
+            vendedor_id: currentMixUser.id || 'temp-id', // Ajustar conforme auth real
+            vendedor_nome: currentMixUser.name,
+            vendedor_token: currentMixUser.token,
+            categoria: currentTableName || 'geral',
+            produto: productName,
+            cliente: currentClientName,
+            consultor: currentConsultantName,
+            rota: document.getElementById('route-select')?.value || 'N/D',
+            perfil_cliente: currentProfile,
+            acao: actionType,
+            mes_ano: getPeriodString(),
+            data_acao: new Date().toISOString()
+        };
+
+        const { error } = await window.supabase
+            .from('acoes_vendedores')
+            .insert([actionData]);
+
+        if (error) throw error;
+
+        // Sucesso
+        if (actionType === 'trabalhado') {
+            currentWorkedProducts.add(productName);
+            showToast(`Produto "${productName}" marcado como trabalhado!`, 'success');
+            renderList(); // Re-renderiza para atualizar botão
+        }
+
+    } catch (error) {
+        console.error("Erro ao registrar ação:", error);
+        showToast("Erro ao salvar ação: " + error.message, "error");
+        if (btn) {
+            btn.innerHTML = originalContent; // Reverte botão
+            btn.disabled = false;
+        }
+    }
+}
 
 function log(msg) {
     const timestamp = new Date().toLocaleTimeString();
@@ -1598,6 +1856,14 @@ function handleClientChange(consultant, route, client) {
     const soldSet = clientData.products;
     currentProfile = clientData.profile;
 
+    // Set global variables for actions
+    currentClientName = client;
+
+    // Carregar ações já salvas
+    loadActions(currentTableName).then(() => {
+        renderList();
+    });
+
     const profileBadge = document.getElementById('profile-badge');
     if (profileBadge) {
         profileBadge.textContent = `Perfil: ${currentProfile}`;
@@ -1657,11 +1923,32 @@ function renderList() {
         const div = document.createElement('div');
         div.className = 'opportunity-card';
 
-        const actionBtn = currentTab === 'opportunities'
-            ? `<button class="btn-primary" style="padding: 6px 12px; font-size: 12px;" data-prod="${escapeHtml(prod)}">
-                <i class="fas fa-copy mr-1"></i> Copiar
-               </button>`
-            : `<span class="text-green-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Vendido</span>`;
+        let actionBtn = '';
+
+        if (currentTab === 'opportunities') {
+            const isWorked = currentWorkedProducts.has(prod);
+
+            if (isWorked) {
+                actionBtn = `
+                    <div class="opportunity-actions">
+                         <span class="status-worked"><i class="fas fa-check-double mr-1"></i> Trabalhado</span>
+                    </div>
+                `;
+            } else {
+                actionBtn = `
+                    <div class="opportunity-actions">
+                        <button class="btn-worked" title="Marcar como Trabalhado" onclick="registerAction('${escapeHtml(prod)}', 'trabalhado')">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn-primary" style="padding: 6px 12px; font-size: 12px;" data-prod="${escapeHtml(prod)}">
+                            <i class="fas fa-copy mr-1"></i> Copiar
+                        </button>
+                    </div>
+                `;
+            }
+        } else {
+            actionBtn = `<span class="text-green-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Vendido</span>`;
+        }
 
         div.innerHTML = `
             <span class="product-name">${escapeHtml(prod)}</span>
@@ -2112,4 +2399,180 @@ async function fetchAllRows(tableName) {
     }
 
     return { data: allData, error: null };
+}
+
+// ============================================
+// DASHBOARD DE PERFORMANCE
+// ============================================
+
+async function loadPerformanceDashboard(preservedDayFilter = null) {
+    console.log("📊 Carregando Dashboard de Performance...");
+
+    // Configurar Filtro de Dia
+    const dayFilterEl = document.getElementById('perf-day-filter');
+    let dayFilter = 'Todos';
+
+    if (dayFilterEl) {
+        if (preservedDayFilter) {
+            dayFilterEl.value = preservedDayFilter;
+        } else if (!dayFilterEl.dataset.initialized) {
+            const daysMap = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+            const today = daysMap[new Date().getDay()];
+            if (today !== 'Domingo') {
+                dayFilterEl.value = today;
+            } else {
+                dayFilterEl.value = 'Todos';
+            }
+
+            dayFilterEl.dataset.initialized = "true";
+            dayFilterEl.addEventListener('change', () => {
+                loadPerformanceDashboard(dayFilterEl.value);
+            });
+        }
+        dayFilter = dayFilterEl.value;
+    }
+
+    if (!currentMixUser) {
+        showToast("Erro: Usuário não autenticado", "error");
+        return;
+    }
+
+    const period = getPeriodString();
+    showLoading("Calculando Oportunidades em TODAS as planilhas...");
+
+    try {
+        // 1. Buscar Ações do Mês (Trabalhados)
+        const { data: actions, error } = await window.supabase
+            .from('acoes_vendedores')
+            .select('*')
+            .eq('vendedor_nome', currentMixUser.name)
+            .eq('mes_ano', period);
+
+        if (error) throw error;
+
+        // 2. Calcular Trabalhados
+        const workedSet = new Set();
+        actions.forEach(a => {
+            if (a.acao === 'trabalhado') workedSet.add(a.produto);
+        });
+
+        // 3. Calcular Oportunidades e Vendidos Globais
+        let totalGlobalOps = 0;
+        let totalGlobalSold = 0;
+
+        // VERIFICAR CACHE
+        if (!globalPerformanceCache) {
+            console.log("📥 Baixando dados do servidor (Cache Miss)...");
+            const tables = await listSupabaseTables();
+
+            globalPerformanceCache = []; // Init Cache
+
+            for (const table of tables) {
+                const loadingMsg = document.getElementById('loading-message');
+                if (loadingMsg) loadingMsg.textContent = `Analisando: ${table.displayName}...`;
+
+                try {
+                    const { data: rows } = await fetchAllRows(table.name);
+                    const matrix = convertSupabaseDataToRows(rows);
+
+                    // Salvar no Cache
+                    globalPerformanceCache.push({
+                        name: table.name,
+                        displayName: table.displayName,
+                        matrix: matrix
+                    });
+
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+        } else {
+            console.log("⚡ Usando dados em Cache!");
+        }
+
+        console.log(`🌍 Analisando ${globalPerformanceCache.length} tabelas. Filtro: ${dayFilter}`);
+
+        for (const cachedTable of globalPerformanceCache) {
+            // Analisar oportunidades com FILTRO DE DIA (Usando dados da RAM)
+            const metrics = analyzeTableData(cachedTable.matrix, currentMixUser.name, dayFilter);
+
+            totalGlobalOps += metrics.ops;
+            totalGlobalSold += metrics.sold;
+
+            console.log(`   - ${cachedTable.displayName}: ${metrics.ops} oportunidades, ${metrics.sold} vendas`);
+        }
+
+        const totalMix = totalGlobalOps + totalGlobalSold;
+        console.log(`🏁 Resultados Globais: Oportunidades=${totalGlobalOps}, Vendidos=${totalGlobalSold}, TotalMix=${totalMix}`);
+
+        // Atualizar UI Stats Labels
+        const labelOps = document.getElementById('perf-total-opportunities').nextElementSibling;
+        const labelWorked = document.getElementById('perf-worked').nextElementSibling;
+        const labelCoverage = document.getElementById('perf-coverage').nextElementSibling;
+
+        if (dayFilter !== 'Todos') {
+            labelOps.textContent = `Oportunidades (${dayFilter})`;
+            labelWorked.textContent = `Trabalhados (Acumulado)`;
+            labelCoverage.textContent = `Efetividade (${dayFilter})`;
+        } else {
+            labelOps.textContent = `Total Oportunidades`;
+            labelWorked.textContent = `Total Trabalhados`;
+            labelCoverage.textContent = `Cobertura Global`;
+        }
+
+        // Atualizar UI
+        document.getElementById('perf-worked').textContent = workedSet.size;
+
+        // AQUI: Usar Total de Oportunidades (Missing) para o card de "Oportunidades"
+        // Ou usar o Mix Total? O card diz "Total Oportunidades".
+        // O user pediu "dashboard de performance". Normalmente "Opportunities" = o que falta.
+        document.getElementById('perf-total-opportunities').textContent = totalGlobalOps;
+
+        // CALCULO EFETIVIDADE
+        // Efetividade = (Trabalhados / Oportunidades DA ROTA). 
+        let effectiveness = 0;
+        if (totalGlobalOps > 0) {
+            effectiveness = Math.round((workedSet.size / totalGlobalOps) * 100);
+        }
+
+        document.getElementById('perf-coverage').textContent = `${effectiveness}%`;
+
+        // LISTAR ULTIMAS AÇÕES
+        const recentList = document.getElementById('recent-actions-list');
+        if (recentList) {
+            if (actions.length === 0) {
+                recentList.innerHTML = '<p class="text-secondary text-center">Nenhuma ação registrada este mês.</p>';
+            } else {
+                recentList.innerHTML = '';
+                const sortedActions = actions.sort((a, b) => new Date(b.data_acao) - new Date(a.data_acao)).slice(0, 10);
+
+                sortedActions.forEach(action => {
+                    const div = document.createElement('div');
+                    div.className = 'opportunity-card';
+                    div.style.padding = '12px';
+
+                    const time = new Date(action.data_acao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+                    div.innerHTML = `
+                        <div>
+                            <span class="product-name" style="font-size: 14px;">${action.produto}</span>
+                            <div style="font-size: 11px; color: #94a3b8;">${action.cliente} • ${time}</div>
+                        </div>
+                        <div class="badge badge-profile" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: none;">
+                            <i class="fas fa-check mr-1"></i> Trabalhado
+                        </div>
+                    `;
+                    recentList.appendChild(div);
+                });
+            }
+        }
+
+
+
+    } catch (error) {
+        console.error("Erro ao carregar performance:", error);
+        showToast("Erro ao carregar dados de performance", "error");
+    } finally {
+        hideLoading();
+    }
 }
