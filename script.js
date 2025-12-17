@@ -111,36 +111,39 @@ async function listSupabaseTables() {
 
         const availableTables = [];
 
-        // Testar cada tabela individualmente
-        for (const tableName of uniqueTables) {
-            try {
-                // Tentar buscar 1 registro da tabela
-                const { data, error } = await window.supabase
-                    .from(tableName)
-                    .select('*')
-                    .limit(1);
+        // Otimização: Testar tabelas em PARALELO (Batching)
+        const batchSize = 5;
+        for (let i = 0; i < uniqueTables.length; i += batchSize) {
+            const batch = uniqueTables.slice(i, i + batchSize);
+            const promises = batch.map(async (tableName) => {
+                try {
+                    const { data, error } = await window.supabase
+                        .from(tableName)
+                        .select('*') // Reverting to standard select for better compatibility
+                        .limit(1);
 
-                if (!error) {
-                    // Tabela existe!
-                    console.log(`✅ Tabela encontrada: ${tableName}`);
-
-                    // Verificar se tem configuração sugerida
-                    const suggestedConfig = SUGGESTED_TABLES.find(t => t.name === tableName);
-
-                    availableTables.push({
-                        name: tableName,
-                        displayName: suggestedConfig?.displayName || formatTableName(tableName),
-                        category: suggestedConfig?.category || detectCategory(tableName),
-                        verified: true
-                    });
+                    if (!error) {
+                        const suggestedConfig = SUGGESTED_TABLES.find(t => t.name === tableName);
+                        return {
+                            name: tableName,
+                            displayName: suggestedConfig?.displayName || formatTableName(tableName),
+                            category: suggestedConfig?.category || detectCategory(tableName),
+                            verified: true
+                        };
+                    }
+                } catch (err) {
+                    return null;
                 }
-            } catch (err) {
-                // Ignora erro, tabela não existe ou sem permissão
-                console.log(`❌ Tabela não disponível: ${tableName}`);
-            }
+                return null;
+            });
 
-            // Pequeno delay para não sobrecarregar
-            await new Promise(resolve => setTimeout(resolve, 50));
+            const results = await Promise.all(promises);
+            results.forEach(r => {
+                if (r) {
+                    console.log(`✅ Tabela encontrada: ${r.name}`);
+                    availableTables.push(r);
+                }
+            });
         }
 
         console.log(`📊 Total de tabelas encontradas: ${availableTables.length}`);
@@ -485,7 +488,7 @@ async function mixLoadUsers() {
             const user = doc.data();
             const date = user.createdAt ? new Date(user.createdAt) : new Date();
             html += `
-                <div class="user-card">
+                <div class="user-card" data-username="${user.name}">
                     <div class="user-info">
                         <div class="user-avatar">${user.name[0]?.toUpperCase()}</div>
                         <div>
@@ -493,6 +496,11 @@ async function mixLoadUsers() {
                             <small>${date.toLocaleDateString('pt-BR')}</small>
                         </div>
                     </div>
+                    
+                    <div class="admin-metrics-area" style="margin-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 13px;">
+                         <!-- Metrics Injected Here -->
+                    </div>
+
                     <div class="user-token" onclick="navigator.clipboard.writeText('${user.token}');showToast('Token copiado!')">
                         ${user.token}
                     </div>
@@ -502,6 +510,9 @@ async function mixLoadUsers() {
         html += '</div>';
 
         container.innerHTML = html;
+
+        // Trigger Async Calculation
+        setTimeout(calculateAdminMetrics, 100);
 
     } catch (error) {
         console.error('Erro ao carregar usuários:', error);
@@ -2229,6 +2240,52 @@ function updateAdminWelcome() {
 
     if (avatar) avatar.textContent = currentMixUser?.name?.[0]?.toUpperCase() || 'A';
     if (name) name.textContent = currentMixUser?.name || 'Administrador';
+
+    // Carregar tabelas do painel admin
+    loadAdminTables();
+}
+
+async function loadAdminTables() {
+    const container = document.getElementById('spreadsheets-list');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="loading-card p-8 text-center" style="grid-column: 1 / -1;">
+            <div class="spinner"></div>
+            <p class="mt-4 text-secondary">Carregando tabelas...</p>
+        </div>
+    `;
+
+    try {
+        const tables = await listSupabaseTables();
+
+        if (!tables || tables.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state" style="grid-column: 1 / -1;">
+                    <div class="empty-state-icon"><i class="fas fa-table"></i></div>
+                    <h4>Nenhuma tabela</h4>
+                    <p>Adicione tabelas no Supabase.</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = tables.map(t => `
+            <div class="admin-table-item" style="background: rgba(30, 41, 59, 0.5); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h4 style="color: white; font-size: 14px; margin: 0;">${t.displayName}</h4>
+                    <span style="font-size: 11px; color: #94a3b8;">${t.name} • ${t.category}</span>
+                </div>
+                <div>
+                    <span class="badge badge-success" style="font-size: 10px;">Ativo</span>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error("Erro loading admin tables:", e);
+        container.innerHTML = '<p class="text-red-500">Erro ao carregar.</p>';
+    }
 }
 
 // ============================================
@@ -2404,6 +2461,103 @@ async function fetchAllRows(tableName) {
 // ============================================
 // DASHBOARD DE PERFORMANCE
 // ============================================
+
+// ============================================
+// ADMIN: MÉTRICAS E DASHBOARD
+// ============================================
+
+async function calculateAdminMetrics() {
+    console.log("👑 Admin: Calculando métricas de todos os usuários...");
+
+    // Garantir que temos dados
+    const success = await ensureGlobalCache();
+    if (!success) {
+        showToast("Erro ao carregar dados.", "error");
+        // Atualizar UI com erro
+        document.querySelectorAll('.admin-metrics-area').forEach(el => {
+            el.innerHTML = '<span style="color: #ef4444; font-size: 11px;"><i class="fas fa-exclamation-circle"></i> Erro ao carregar</span>';
+        });
+        return;
+    }
+
+    // Para cada card de usuário
+    const userCards = document.querySelectorAll('.user-card');
+
+    userCards.forEach(card => {
+        const userName = card.dataset.username;
+        const metricsContainer = card.querySelector('.admin-metrics-area');
+
+        if (!userName || !metricsContainer) return;
+
+        metricsContainer.innerHTML = '<span class="loading-mini">Calculando...</span>';
+
+        // Calcular (Assumindo "Todos" os dias para admin)
+        let totalOps = 0;
+        let totalSold = 0;
+
+        // Percorrer todas as tabelas em cache
+        globalPerformanceCache.forEach(table => {
+            const metrics = analyzeTableData(table.matrix, userName, 'Todos');
+            totalOps += metrics.ops;
+            totalSold += metrics.sold;
+        });
+
+        const total = totalOps + totalSold;
+        let effectiveness = 0;
+        if (total > 0) {
+            effectiveness = Math.round((totalSold / total) * 100);
+        }
+
+        // Renderizar Badge
+        let badgeColor = 'bg-gray-500';
+        if (effectiveness >= 70) badgeColor = 'bg-green-500';
+        else if (effectiveness >= 40) badgeColor = 'bg-yellow-500';
+        else badgeColor = 'bg-red-500';
+
+        metricsContainer.innerHTML = `
+            <div class="metric-badge ${badgeColor}" title="Baseado em dados da planilha (Vendas/Total)">
+                <i class="fas fa-chart-line"></i> ${effectiveness}% Efic.
+            </div>
+            <div class="metric-mini">
+                <span title="Vendas Realizadas">✅ ${totalSold}</span>
+                <span title="Oportunidades Abertas">⭕ ${totalOps}</span>
+            </div>
+        `;
+    });
+}
+
+// Função auxiliar para garantir Cache Carregado
+async function ensureGlobalCache() {
+    if (globalPerformanceCache) return true;
+
+    try {
+        const loadingMsg = document.getElementById('loading-message'); // Fallback if exists
+
+        const tables = await listSupabaseTables();
+        globalPerformanceCache = [];
+
+        for (const table of tables) {
+            if (loadingMsg) loadingMsg.textContent = `Cache: ${table.displayName}...`;
+
+            try {
+                const { data: rows } = await fetchAllRows(table.name);
+                const matrix = convertSupabaseDataToRows(rows);
+
+                globalPerformanceCache.push({
+                    name: table.name,
+                    displayName: table.displayName,
+                    matrix: matrix
+                });
+            } catch (err) {
+                console.error(`Erro cache ${table.name}:`, err);
+            }
+        }
+        return true;
+    } catch (e) {
+        console.error("Erro fatal cache:", e);
+        return false;
+    }
+}
 
 async function loadPerformanceDashboard(preservedDayFilter = null) {
     console.log("📊 Carregando Dashboard de Performance...");
