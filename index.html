@@ -214,10 +214,7 @@
                     <p class="subtitle">Gerenciamento de Vendedores e Planilhas</p>
                 </div>
                 <div class="header-right">
-                    <button onclick="showScreen('performance-screen'); loadPerformanceDashboard()" class="btn-secondary"
-                        style="margin-right: 10px;">
-                        <i class="fas fa-chart-pie"></i> Performance
-                    </button>
+
                     <div class="user-welcome">
                         <div class="user-avatar" id="user-avatar">A</div>
                         <div>
@@ -251,20 +248,20 @@
             <!-- ADMIN: Gerenciar Planilhas -->
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fas fa-layer-group"></i> Gerenciar Planilhas</h3>
-                    <p>Gerencie múltiplas planilhas por categoria</p>
+                    <h3><i class="fas fa-layer-group"></i> Gerenciar Tabelas</h3>
+                    <p>Gerencie múltiplas tabelas por categoria</p>
                 </div>
 
                 <div class="spreadsheet-selector-header">
                     <button onclick="showAddSpreadsheetModal()" class="btn-primary">
-                        <i class="fas fa-plus-circle mr-2"></i> Adicionar Planilha
+                        <i class="fas fa-plus-circle mr-2"></i> Adicionar Tabela
                     </button>
                 </div>
 
                 <div id="spreadsheets-list" class="spreadsheet-grid mt-6">
                     <div class="loading-card p-8 text-center">
                         <div class="spinner"></div>
-                        <p class="mt-4 text-secondary">Carregando planilhas do Supabase...</p>
+                        <p class="mt-4 text-secondary">Carregando tabelas do Supabase...</p>
                     </div>
                 </div>
             </div>
@@ -318,7 +315,7 @@
             <section id="spreadsheet-selector" class="card">
                 <div class="spreadsheet-selector-header">
                     <div>
-                        <h3><i class="fas fa-file-alt mr-2"></i> Selecione a Planilha</h3>
+                        <h3><i class="fas fa-table mr-2"></i> Selecione a Tabela</h3>
                         <p class="text-secondary">Escolha qual categoria de dados você quer analisar:</p>
                     </div>
                     <div class="category-filters" id="category-filters">
@@ -343,10 +340,10 @@
                 <div class="spreadsheet-grid" id="spreadsheet-cards">
                     <div class="empty-state">
                         <div class="empty-state-icon">
-                            <i class="fas fa-file-excel"></i>
+                            <i class="fas fa-table"></i>
                         </div>
                         <h4>Aguarde carregamento</h4>
-                        <p>Carregando planilhas do Supabase...</p>
+                        <p>Carregando tabelas do Supabase...</p>
                     </div>
                 </div>
 
