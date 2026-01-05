@@ -368,8 +368,7 @@ async function mixLogin() {
 
         const q = query(
             collection(firebaseDb, 'users'),
-            where('token', '==', token),
-            where('role', '==', 'user')
+            where('token', '==', token)
         );
         const querySnapshot = await getDocs(q);
 
@@ -408,13 +407,117 @@ async function mixLogin() {
 // ADMIN: GERENCIAMENTO
 // ============================================
 
+// Toggle Supervisor Select visibility
+function toggleSupervisorSelect() {
+    const roleSelect = document.getElementById('new-user-role');
+    const supervisorGroup = document.getElementById('supervisor-select-group');
+    if (roleSelect && supervisorGroup) {
+        supervisorGroup.style.display = roleSelect.value === 'user' ? 'block' : 'none';
+    }
+}
+
+// Toggle Supervisor Select visibility (EDIT MODAL)
+function toggleEditSupervisorSelect() {
+    const roleSelect = document.getElementById('edit-user-role');
+    const supervisorGroup = document.getElementById('edit-supervisor-group');
+    if (roleSelect && supervisorGroup) {
+        supervisorGroup.style.display = roleSelect.value === 'user' ? 'block' : 'none';
+    }
+}
+
+// Global cache for supervisors to populate edit modal
+let globalSupervisorsList = [];
+
+function closeEditModal() {
+    const modal = document.getElementById('edit-user-modal');
+    if (modal) modal.style.display = 'none'; // Using style for override
+}
+
+function showEditUserModal(userId, name, role, supervisorId) {
+    const modal = document.getElementById('edit-user-modal');
+    if (!modal) return;
+
+    // Populate Fields
+    document.getElementById('edit-user-id').value = userId;
+    document.getElementById('edit-user-name').value = name;
+    document.getElementById('edit-user-role').value = role;
+
+    // Populate Supervisor Select
+    const supervisorSelect = document.getElementById('edit-user-supervisor');
+    if (supervisorSelect) {
+        let html = '<option value="">Sem Supervisor</option>';
+        globalSupervisorsList.forEach(sup => {
+            // Prevent self-selection if user is a supervisor (circular)
+            if (sup.id !== userId) {
+                html += `<option value="${sup.id}" ${sup.id === supervisorId ? 'selected' : ''}>${sup.name}</option>`;
+            }
+        });
+        supervisorSelect.innerHTML = html;
+        // Pre-select logic handles basic cases, but explicit value setting is safer
+        if (supervisorId) supervisorSelect.value = supervisorId;
+    }
+
+    // Toggle visibility
+    toggleEditSupervisorSelect();
+
+    // Show Modal
+    modal.style.display = 'flex';
+}
+
+async function mixUpdateUser() {
+    const id = document.getElementById('edit-user-id').value;
+    const name = document.getElementById('edit-user-name').value;
+    const role = document.getElementById('edit-user-role').value;
+    const supervisorId = document.getElementById('edit-user-supervisor').value;
+
+    if (!name) {
+        showToast('Nome é obrigatório!', 'error');
+        return;
+    }
+
+    try {
+        const { doc, updateDoc } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        const userRef = doc(firebaseDb, "users", id);
+
+        const updateData = {
+            name: name,
+            role: role,
+            supervisorId: (role === 'user' && supervisorId) ? supervisorId : null // Clear supervisor if role is supervisor or none selected
+        };
+
+        // Remove supervisorId field if null to keep clean? Or set null. Firestore merge handles it.
+        // Better to explicitly set what we want.
+
+        await updateDoc(userRef, updateData);
+
+        showToast('Usuário atualizado com sucesso!', 'success');
+        closeEditModal();
+        mixLoadUsers(); // Refresh list
+
+    } catch (e) {
+        console.error("Erro ao atualizar usuário:", e);
+        showToast('Erro ao atualizar. Tente novamente.', 'error');
+    }
+}
+
 async function mixCreateUser() {
     const nameInput = document.getElementById('new-user-name');
     const name = nameInput ? nameInput.value.trim() : '';
+
+    // Novos campos
+    const roleInput = document.getElementById('new-user-role');
+    const role = roleInput ? roleInput.value : 'user';
+
+    const supervisorInput = document.getElementById('new-user-supervisor');
+    const supervisorId = supervisorInput ? supervisorInput.value : '';
+
     const createBtn = document.getElementById('create-user-btn');
 
     if (!name) {
-        showToast('Digite um nome para o vendedor!', 'error');
+        showToast('Digite um nome para o colaborador!', 'error');
         return;
     }
 
@@ -430,12 +533,19 @@ async function mixCreateUser() {
             "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
         );
 
-        await addDoc(collection(firebaseDb, 'users'), {
+        const userData = {
             name: name,
             token: token,
-            role: 'user',
+            role: role,
             createdAt: new Date().toISOString()
-        });
+        };
+
+        // Se for vendedor e tiver supervisor
+        if (role === 'user' && supervisorId) {
+            userData.supervisorId = supervisorId;
+        }
+
+        await addDoc(collection(firebaseDb, 'users'), userData);
 
         showToast(`Vendedor "${name}" criado!\nToken: ${token}`, 'success');
         navigator.clipboard.writeText(token);
@@ -458,61 +568,78 @@ async function mixLoadUsers() {
     if (!container) return;
 
     try {
-        const { collection, query, where, orderBy, getDocs } = await import(
+        const { collection, getDocs, query, orderBy } = await import(
             "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
         );
 
-        const q = query(
-            collection(firebaseDb, 'users'),
-            where('role', '==', 'user'),
-            orderBy('createdAt', 'desc')
-        );
-
+        const q = query(collection(firebaseDb, 'users'), orderBy('createdAt', 'desc'));
         const querySnapshot = await getDocs(q);
 
-        if (querySnapshot.empty) {
+        const usersList = [];
+        const supervisorsList = [];
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            // IMPORTANT: Include the ID
+            usersList.push({ id: doc.id, ...data });
+            if (data.role === 'supervisor') {
+                supervisorsList.push({ id: doc.id, name: data.name });
+            }
+        });
+
+        // Update Global Cache for Edit Modal
+        globalSupervisorsList = supervisorsList;
+
+        // 1. Popular Select de Supervisores
+        const supervisorSelect = document.getElementById('new-user-supervisor');
+        if (supervisorSelect) {
+            supervisorSelect.innerHTML = '<option value="">Selecione...</option>';
+            supervisorsList.forEach(sup => {
+                supervisorSelect.innerHTML += `<option value="${sup.id}">${sup.name}</option>`;
+            });
+        }
+
+        // 2. Renderizar Lista
+        if (usersList.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <div class="empty-state-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <h4>Nenhum vendedor</h4>
-                    <p>Crie o primeiro vendedor acima</p>
+                    <p>Nenhum colaborador cadastrado.</p>
                 </div>
             `;
             return;
         }
 
-        let html = '<div class="users-grid">';
-        querySnapshot.forEach(doc => {
-            const user = doc.data();
-            const date = user.createdAt ? new Date(user.createdAt) : new Date();
-            html += `
-                <div class="user-card" data-username="${user.name}">
-                    <div class="user-info">
-                        <div class="user-avatar">${user.name[0]?.toUpperCase()}</div>
-                        <div>
-                            <h4>${user.name}</h4>
-                            <small>${date.toLocaleDateString('pt-BR')}</small>
-                        </div>
-                    </div>
-                    
-                    <div class="admin-metrics-area" style="margin-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 13px;">
-                         <!-- Metrics Injected Here -->
-                    </div>
+        container.innerHTML = usersList.map(u => {
+            const roleBadge = u.role === 'supervisor'
+                ? '<span class="badge" style="background:#8b5cf6; padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px;">Supervisor</span>'
+                : '<span class="badge" style="background:#10b981; padding: 2px 6px; border-radius: 4px; color: white; font-size: 10px;">Vendedor</span>';
 
-                    <div class="user-token" onclick="navigator.clipboard.writeText('${user.token}');showToast('Token copiado!')">
-                        ${user.token}
-                    </div>
+            const supervisorInfo = u.supervisorId
+                ? `<div style="font-size: 12px; color: #64748b; margin-top: 4px;"> <i class="fas fa-user-tie"></i> Sup: ${supervisorsList.find(s => s.id === u.supervisorId)?.name || 'N/A'}</div>`
+                : '';
+
+            // Escape strings for onclick
+            const safeName = u.name.replace(/'/g, "\\'");
+            const safeRole = u.role || 'user';
+            const safeSupId = u.supervisorId || '';
+
+            return `
+            <div class="user-card" style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                <div>
+                    <div style="font-weight: 600; color: #1e293b;">${u.name} ${roleBadge}</div>
+                    <div style="font-family: monospace; color: #64748b; font-size: 0.9rem;">Token: ${u.token}</div>
+                    ${supervisorInfo}
                 </div>
-            `;
-        });
-        html += '</div>';
-
-        container.innerHTML = html;
-
-        // Trigger Async Calculation
-        setTimeout(calculateAdminMetrics, 100);
+                <div style="display: flex; gap: 8px;">
+                     <button class="btn-icon" title="Editar" onclick="showEditUserModal('${u.id}', '${safeName}', '${safeRole}', '${safeSupId}')" style="color: #3b82f6;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-icon" title="Copiar Token" onclick="navigator.clipboard.writeText('${u.token}'); showToast('Token copiado!')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+        `}).join('');
 
     } catch (error) {
         console.error('Erro ao carregar usuários:', error);
@@ -543,21 +670,82 @@ function mixLogout() {
 // DASHBOARD: TABELAS DO SUPABASE (ATUALIZADO)
 // ============================================
 
-function loadDashboardScreen() {
+// Variável global para controle de visualização do supervisor
+let selectedSubordinateForSupervisor = null;
+let supervisorSubordinatesList = [];
+
+async function loadDashboardScreen() {
     const userName = currentMixUser?.name || 'Vendedor';
+    const role = currentMixUser?.role || 'user';
+    const userId = currentMixUser?.id;
 
     const avatar = document.getElementById('dashboard-user-avatar');
     const nameEl = document.getElementById('dashboard-user-name');
+    const roleEl = document.getElementById('dashboard-user-role'); // Requires adding id="dashboard-user-role" to HTML if not present, checking... index.html line 305 has it.
 
     if (avatar) avatar.textContent = userName[0]?.toUpperCase() || 'V';
     if (nameEl) nameEl.textContent = userName;
+    if (roleEl) roleEl.textContent = role.toUpperCase();
+
+    // Supervisor Logic
+    // Verificações de Role
+    if (currentMixUser.role === 'supervisor') {
+        const controls = document.getElementById('supervisor-view-controls');
+        if (controls) {
+            controls.classList.remove('hidden');
+            controls.style.display = 'flex'; // Force display
+        }
+
+        // Buscar seus liderados para o Select
+        const { collection, query, where, getDocs } = await import(
+            "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+        );
+
+        const qSub = query(collection(firebaseDb, 'users'), where('supervisorId', '==', currentMixUser.id));
+        const snapSub = await getDocs(qSub);
+
+        const subSelect = document.getElementById('supervisor-subordinate-select');
+        if (subSelect) {
+            let html = '<option value="ALL">Todos os Liderados</option>';
+            // Add self option
+            html += `<option value="${currentMixUser.name}">Meus Dados (Supervisor)</option>`;
+
+            snapSub.forEach(doc => {
+                const sub = doc.data();
+                html += `<option value="${sub.name}">${sub.name}</option>`;
+                supervisorSubordinatesList.push(sub.name);
+            });
+            subSelect.innerHTML = html;
+        }
+    } else {
+        const controls = document.getElementById('supervisor-view-controls');
+        if (controls) controls.classList.add('hidden');
+    }
 
     showScreen('dashboard-screen');
 
     setTimeout(() => {
-        initializeApp(); // Garante inicialização dos listeners
+        initializeApp();
         loadAvailableTables();
+        mixLoadData();
     }, 100);
+}
+
+window.handleSupervisorChange = function () {
+    const select = document.getElementById('supervisor-subordinate-select');
+    if (!select) return;
+
+    const val = select.value;
+    if (val === 'all') {
+        selectedSubordinateForSupervisor = supervisorSubordinatesList;
+    } else {
+        selectedSubordinateForSupervisor = val; // Single name string
+    }
+
+    // Reload data if table is selected
+    if (currentTableName && currentTableDisplayName) {
+        loadDataFromTable(currentTableName, currentTableDisplayName);
+    }
 }
 
 async function loadAvailableTables() {
@@ -1008,7 +1196,7 @@ let currentMissing = [];
 let currentSold = [];
 let currentConsultantName = '';
 
-// NOVO: Controle de Produtos Trabalhados
+// NOVO: Controle de Produtos positivado
 let currentWorkedProducts = new Set();
 let currentClientName = '';
 let currentPeriod = '';
@@ -1031,7 +1219,31 @@ function analyzeTableData(rows, targetUser, dayFilter = 'Todos') {
     };
 
     try {
-        debug(`Iniciando análise para: ${targetUser}. Linhas totais: ${rows.length}`);
+        // Determine Target User(s)
+        // If supervisor has selected someone (single string or array), use that.
+        // Otherwise use the passed targetUser (which is usually current logged user)
+        const effectiveTarget = selectedSubordinateForSupervisor ? selectedSubordinateForSupervisor : targetUser;
+
+        debug(`Iniciando análise. Target: ${JSON.stringify(effectiveTarget)}. Linhas: ${rows.length}`);
+
+        // Helper to check if row matches target
+        const isTargetMatch = (consultantNameInRow) => {
+            if (!consultantNameInRow) return false;
+            const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            const cNorm = norm(consultantNameInRow);
+
+            if (Array.isArray(effectiveTarget)) {
+                // Check if matches ANY name in array
+                return effectiveTarget.some(t => {
+                    const tNorm = norm(t);
+                    return cNorm.includes(tNorm) || tNorm.includes(cNorm);
+                });
+            } else {
+                // Single user string
+                const tNorm = norm(effectiveTarget);
+                return cNorm.includes(tNorm) || tNorm.includes(cNorm);
+            }
+        };
 
         // DETECÇÃO DE CABEÇALHO (Cópia simplificada do processData)
         const maxScan = Math.min(50, rows.length);
@@ -1079,8 +1291,6 @@ function analyzeTableData(rows, targetUser, dayFilter = 'Todos') {
             return { ops: 0, sold: 0 };
         }
 
-        const targetNormalized = targetUser.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-
         // Forçar WIDE se o usuário pediu regra de coluna 8
         const isWide = true;
 
@@ -1112,10 +1322,9 @@ function analyzeTableData(rows, targetUser, dayFilter = 'Todos') {
 
             rowsProcessed++;
             const consultant = row[colConsultant] ? String(row[colConsultant]).trim() : '';
-            const consNorm = consultant.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
             // Check Match
-            if (!consNorm.includes(targetNormalized) && !targetNormalized.includes(consNorm)) {
+            if (!isTargetMatch(consultant)) {
                 continue;
             }
 
@@ -1201,11 +1410,11 @@ async function loadActions(tableName) {
 
         if (data) {
             data.forEach(item => {
-                if (item.acao === 'trabalhado') {
+                if (item.acao === 'positivado') {
                     currentWorkedProducts.add(item.produto);
                 }
             });
-            console.log(`✅ ${currentWorkedProducts.size} produtos trabalhados encontrados.`);
+            console.log(`✅ ${currentWorkedProducts.size} produtos positivados encontrados.`);
         }
     } catch (err) {
         console.error("Exceção ao carregar ações:", err);
@@ -1249,9 +1458,9 @@ async function registerAction(productName, actionType) {
         if (error) throw error;
 
         // Sucesso
-        if (actionType === 'trabalhado') {
+        if (actionType === 'positivado') {
             currentWorkedProducts.add(productName);
-            showToast(`Produto "${productName}" marcado como trabalhado!`, 'success');
+            showToast(`Produto "${productName}" marcado como positivado!`, 'success');
             renderList(); // Re-renderiza para atualizar botão
         }
 
@@ -1503,8 +1712,15 @@ function processData(data) {
             return;
         }
 
-        // Obter nome do usuário atual
-        const userName = currentMixUser?.name || localStorage.getItem('userName') || 'Consultor';
+        // Obter nome do usuário atual ou do liderado selecionado
+        let userName = currentMixUser?.name || localStorage.getItem('userName') || 'Consultor';
+
+        // SUPERVISOR OVERRIDE: Se houver um liderado selecionado, usar ele como target
+        if (selectedSubordinateForSupervisor) {
+            console.log(`👑 Supervisor Override: Filtrando por liderado "${selectedSubordinateForSupervisor}"`);
+            userName = selectedSubordinateForSupervisor;
+        }
+
         currentConsultantName = userName;
 
         console.log(`👤 Procurando dados para: "${currentConsultantName}"`);
@@ -1582,6 +1798,8 @@ function processData(data) {
             const normalizedConsultant = normalizeName(consultant);
 
             // Verifica se é o usuário atual (com tolerância)
+            // Se for SUPERVISOR vendo TODOS, podemos pular filtro ou ajustar aqui
+            // Mas por enquanto assumimos que selectedSubordinateForSupervisor é um único nome
             const isCurrentUser = normalizedConsultant === normalizedUserName ||
                 consultant.toLowerCase().includes(normalizedUserName) ||
                 normalizedUserName.includes(normalizedConsultant) ||
@@ -1923,7 +2141,7 @@ function renderList() {
                     ${currentTab === 'opportunidades' ? 'Cliente já comprou todo o mix!' : 'Nenhum item vendido ainda.'}
                 </h4>
                 <p class="text-secondary">
-                    ${currentTab === 'opportunities' ? 'Excelente trabalho!' : 'Comece a vender para ver os dados aqui.'}
+                    ${currentTab === 'opportunities' ? 'Excelente positivado!' : 'Comece a vender para ver os dados aqui.'}
                 </p>
             </div>
         `;
@@ -1942,13 +2160,13 @@ function renderList() {
             if (isWorked) {
                 actionBtn = `
                     <div class="opportunity-actions">
-                         <span class="status-worked"><i class="fas fa-check-double mr-1"></i> Trabalhado</span>
+                         <span class="status-worked"><i class="fas fa-check-double mr-1"></i> positivado</span>
                     </div>
                 `;
             } else {
                 actionBtn = `
                     <div class="opportunity-actions">
-                        <button class="btn-worked" title="Marcar como Trabalhado" onclick="registerAction('${escapeHtml(prod)}', 'trabalhado')">
+                        <button class="btn-worked" title="Marcar como positivado" onclick="registerAction('${escapeHtml(prod)}', 'positivado')">
                             <i class="fas fa-check"></i>
                         </button>
                         <button class="btn-primary" style="padding: 6px 12px; font-size: 12px;" data-prod="${escapeHtml(prod)}">
@@ -2562,6 +2780,16 @@ async function ensureGlobalCache() {
 async function loadPerformanceDashboard(preservedDayFilter = null) {
     console.log("📊 Carregando Dashboard de Performance...");
 
+    // Supervisor Export Button Logic
+    const btnExport = document.getElementById('btn-export-supervisor');
+    if (btnExport) {
+        if (currentMixUser?.role === 'supervisor') {
+            btnExport.classList.remove('hidden');
+        } else {
+            btnExport.classList.add('hidden');
+        }
+    }
+
     // Configurar Filtro de Dia
     const dayFilterEl = document.getElementById('perf-day-filter');
     let dayFilter = 'Todos';
@@ -2595,101 +2823,179 @@ async function loadPerformanceDashboard(preservedDayFilter = null) {
     showLoading("Calculando Oportunidades em TODAS as planilhas...");
 
     try {
-        // 1. Buscar Ações do Mês (Trabalhados)
-        const { data: actions, error } = await window.supabase
-            .from('acoes_vendedores')
-            .select('*')
-            .eq('vendedor_nome', currentMixUser.name)
-            .eq('mes_ano', period);
+        let actions = [];
+        let isSupervisor = currentMixUser.role === 'supervisor';
+        let totalEmployees = 0;
+        let activeConsultantsCount = 0;
+        let workedSet = new Set(); // Para uso comum (lista recente)
 
-        if (error) throw error;
+        if (isSupervisor) {
+            // === LÓGICA SUPERVISOR ===
+            // 1. Definir Hierarquia (Apenas Liderados)
+            // 1. Definir Hierarquia (Apenas Liderados - Fonte: Firebase)
+            let rawHierarchy = [];
 
-        // 2. Calcular Trabalhados
-        const workedSet = new Set();
-        actions.forEach(a => {
-            if (a.acao === 'trabalhado') workedSet.add(a.produto);
-        });
+            // PRIORIDADE: Buscar SEMPRE do Firebase para garantir precisão, 
+            // ou usar cache se confiável. Para evitar duplicação, usamos SET.
 
-        // 3. Calcular Oportunidades e Vendidos Globais
-        let totalGlobalOps = 0;
-        let totalGlobalSold = 0;
+            // Tenta usar a lista global (já populada no login ou fallback anterior)
+            if (supervisorSubordinatesList && supervisorSubordinatesList.length > 0) {
+                rawHierarchy = [...supervisorSubordinatesList];
+            }
 
-        // VERIFICAR CACHE
-        if (!globalPerformanceCache) {
-            console.log("📥 Baixando dados do servidor (Cache Miss)...");
-            const tables = await listSupabaseTables();
-
-            globalPerformanceCache = []; // Init Cache
-
-            for (const table of tables) {
-                const loadingMsg = document.getElementById('loading-message');
-                if (loadingMsg) loadingMsg.textContent = `Analisando: ${table.displayName}...`;
-
+            // Fallback: Se lista vazia, buscar do Firebase agora
+            if (rawHierarchy.length === 0) {
+                console.warn("DEBUG: Lista de liderados vazia. Buscando do Firebase...");
                 try {
-                    const { data: rows } = await fetchAllRows(table.name);
-                    const matrix = convertSupabaseDataToRows(rows);
+                    const { collection, query, where, getDocs } = await import(
+                        "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
+                    );
+                    const qSub = query(collection(firebaseDb, 'users'), where('supervisorId', '==', currentMixUser.id));
+                    const snapSub = await getDocs(qSub);
 
-                    // Salvar no Cache
-                    globalPerformanceCache.push({
-                        name: table.name,
-                        displayName: table.displayName,
-                        matrix: matrix
+                    snapSub.forEach(doc => {
+                        const sub = doc.data();
+                        if (sub.name) {
+                            rawHierarchy.push(sub.name);
+                            // Sincroniza global
+                            if (supervisorSubordinatesList) supervisorSubordinatesList.push(sub.name);
+                        }
                     });
-
-                } catch (err) {
-                    console.error(err);
+                } catch (e) {
+                    console.error("Erro ao buscar liderados (fallback):", e);
                 }
             }
+
+            // DEDUPLICAÇÃO E LIMPEZA
+            // Garante que cada nome apareça apenas uma vez e remove o próprio supervisor se presente
+            const uniqueHierarchySet = new Set(rawHierarchy.map(n => n.trim()));
+            if (uniqueHierarchySet.has(currentMixUser.name)) {
+                uniqueHierarchySet.delete(currentMixUser.name);
+            }
+
+            // Agora sim, temos a lista limpa para usar como filtro
+            const hierarchyNames = Array.from(uniqueHierarchySet);
+            console.log("DEBUG: Hierarquia Final Única:", hierarchyNames);
+
+            // Verificação final
+            if (hierarchyNames.length === 0) {
+                showToast("Atenção: Nenhum liderado encontrado.", "warning");
+            }
+
+            totalEmployees = hierarchyNames.length;
+
+            // 2. Buscar Ações de TODA a equipe
+            // Supabase pode retornar múltiplas ações para o mesmo vendedor.
+            // Precisamos filtrar apenas os vendedores válidos da nossa lista.
+
+            if (totalEmployees > 0) {
+                const { data, error } = await window.supabase
+                    .from('acoes_vendedores')
+                    .select('*')
+                    .in('vendedor_nome', hierarchyNames)
+                    .eq('mes_ano', period);
+
+                if (error) {
+                    console.error("Erro Supabase:", error);
+                    // Não lança erro fatal para não quebrar UI, apenas loga
+                    actions = [];
+                } else {
+                    actions = data || [];
+                }
+            } else {
+                actions = [];
+            }
+
+            // 3. Calcular Consultores Ativos (Quantos nomes únicos positivaram)
+            const uniqueActive = new Set();
+            actions.forEach(a => {
+                if (a.acao === 'positivado') uniqueActive.add(a.vendedor_nome);
+            });
+            activeConsultantsCount = uniqueActive.size;
+
         } else {
-            console.log("⚡ Usando dados em Cache!");
+            // === LÓGICA VENDEDOR / ADMIN ===
+            // 1. Buscar Ações Apenas do Usuário
+            const { data, error } = await window.supabase
+                .from('acoes_vendedores')
+                .select('*')
+                .eq('vendedor_nome', currentMixUser.name)
+                .eq('mes_ano', period);
+
+            if (error) throw error;
+            actions = data || [];
+
+            // 2. Calcular positivados (produtos únicos)
+            actions.forEach(a => {
+                if (a.acao === 'positivado') workedSet.add(a.produto);
+            });
         }
 
-        console.log(`🌍 Analisando ${globalPerformanceCache.length} tabelas. Filtro: ${dayFilter}`);
-
-        for (const cachedTable of globalPerformanceCache) {
-            // Analisar oportunidades com FILTRO DE DIA (Usando dados da RAM)
-            const metrics = analyzeTableData(cachedTable.matrix, currentMixUser.name, dayFilter);
-
-            totalGlobalOps += metrics.ops;
-            totalGlobalSold += metrics.sold;
-
-            console.log(`   - ${cachedTable.displayName}: ${metrics.ops} oportunidades, ${metrics.sold} vendas`);
-        }
-
-        const totalMix = totalGlobalOps + totalGlobalSold;
-        console.log(`🏁 Resultados Globais: Oportunidades=${totalGlobalOps}, Vendidos=${totalGlobalSold}, TotalMix=${totalMix}`);
-
-        // Atualizar UI Stats Labels
+        // 3. Referências UI
         const labelOps = document.getElementById('perf-total-opportunities').nextElementSibling;
         const labelWorked = document.getElementById('perf-worked').nextElementSibling;
         const labelCoverage = document.getElementById('perf-coverage').nextElementSibling;
 
-        if (dayFilter !== 'Todos') {
-            labelOps.textContent = `Oportunidades (${dayFilter})`;
-            labelWorked.textContent = `Trabalhados (Acumulado)`;
-            labelCoverage.textContent = `Efetividade (${dayFilter})`;
+        const valOps = document.getElementById('perf-total-opportunities');
+        const valWorked = document.getElementById('perf-worked');
+        const valCoverage = document.getElementById('perf-coverage');
+
+        if (isSupervisor) {
+            // === UI UPDATE SUPERVISOR ===
+            labelOps.textContent = "Total Equipe";
+            valOps.textContent = totalEmployees;
+
+            labelWorked.textContent = "Consultores Positivados";
+            valWorked.textContent = activeConsultantsCount;
+
+            labelCoverage.textContent = "% Ativação";
+            let coverage = totalEmployees > 0 ? Math.round((activeConsultantsCount / totalEmployees) * 100) : 0;
+            valCoverage.textContent = `${coverage}%`;
+
         } else {
-            labelOps.textContent = `Total Oportunidades`;
-            labelWorked.textContent = `Total Trabalhados`;
-            labelCoverage.textContent = `Cobertura Global`;
+            // === UI UPDATE NORMAL ===
+            // Calcular Oportunidades Globais (Custoso, apenas se não for supervisor)
+            let totalGlobalOps = 0;
+            let totalGlobalSold = 0;
+
+            // VERIFICAR CACHE
+            if (!globalPerformanceCache) {
+                const tables = await listSupabaseTables();
+                globalPerformanceCache = [];
+                for (const table of tables) {
+                    try {
+                        const { data: rows } = await fetchAllRows(table.name);
+                        const matrix = convertSupabaseDataToRows(rows);
+                        globalPerformanceCache.push({ name: table.name, displayName: table.displayName, matrix: matrix });
+                    } catch (err) { console.error(err); }
+                }
+            }
+
+            for (const cachedTable of globalPerformanceCache) {
+                const metrics = analyzeTableData(cachedTable.matrix, currentMixUser.name, dayFilter);
+                totalGlobalOps += metrics.ops;
+                totalGlobalSold += metrics.sold;
+            }
+
+            if (dayFilter !== 'Todos') {
+                labelOps.textContent = `Oportunidades (${dayFilter})`;
+                labelWorked.textContent = `positivado (Acumulado)`;
+                labelCoverage.textContent = `Efetividade (${dayFilter})`;
+            } else {
+                labelOps.textContent = `Total Oportunidades`;
+                labelWorked.textContent = `Total positivado`;
+                labelCoverage.textContent = `Cobertura Global`;
+            }
+
+            valOps.textContent = totalGlobalOps;
+            valWorked.textContent = workedSet.size;
+
+            let effectiveness = 0;
+            if (totalGlobalOps > 0) {
+                effectiveness = Math.round((workedSet.size / totalGlobalOps) * 100);
+            }
+            valCoverage.textContent = `${effectiveness}%`;
         }
-
-        // Atualizar UI
-        document.getElementById('perf-worked').textContent = workedSet.size;
-
-        // AQUI: Usar Total de Oportunidades (Missing) para o card de "Oportunidades"
-        // Ou usar o Mix Total? O card diz "Total Oportunidades".
-        // O user pediu "dashboard de performance". Normalmente "Opportunities" = o que falta.
-        document.getElementById('perf-total-opportunities').textContent = totalGlobalOps;
-
-        // CALCULO EFETIVIDADE
-        // Efetividade = (Trabalhados / Oportunidades DA ROTA). 
-        let effectiveness = 0;
-        if (totalGlobalOps > 0) {
-            effectiveness = Math.round((workedSet.size / totalGlobalOps) * 100);
-        }
-
-        document.getElementById('perf-coverage').textContent = `${effectiveness}%`;
 
         // LISTAR ULTIMAS AÇÕES
         const recentList = document.getElementById('recent-actions-list');
@@ -2698,26 +3004,72 @@ async function loadPerformanceDashboard(preservedDayFilter = null) {
                 recentList.innerHTML = '<p class="text-secondary text-center">Nenhuma ação registrada este mês.</p>';
             } else {
                 recentList.innerHTML = '';
-                const sortedActions = actions.sort((a, b) => new Date(b.data_acao) - new Date(a.data_acao)).slice(0, 10);
+                if (isSupervisor) {
 
-                sortedActions.forEach(action => {
-                    const div = document.createElement('div');
-                    div.className = 'opportunity-card';
-                    div.style.padding = '12px';
+                    // === LISTA DE EQUIPE (SUPERVISOR) - HISTÓRICO DE AÇÕES REAL ===
+                    recentList.innerHTML = '';
+                    const teamHeader = document.createElement('div');
+                    teamHeader.style.marginBottom = '10px';
+                    teamHeader.style.fontWeight = 'bold';
+                    teamHeader.style.color = '#334155';
+                    teamHeader.textContent = 'Histórico Recente da Equipe';
+                    recentList.appendChild(teamHeader);
 
-                    const time = new Date(action.data_acao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    // Reverte para mostrar AÇÕES, não PESSOAS.
+                    // Ordena todas as ações da equipe por data
+                    const sortedTeamActions = actions.sort((a, b) => new Date(b.data_acao) - new Date(a.data_acao)).slice(0, 20);
 
-                    div.innerHTML = `
-                        <div>
-                            <span class="product-name" style="font-size: 14px;">${action.produto}</span>
-                            <div style="font-size: 11px; color: #94a3b8;">${action.cliente} • ${time}</div>
-                        </div>
-                        <div class="badge badge-profile" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: none;">
-                            <i class="fas fa-check mr-1"></i> Trabalhado
-                        </div>
-                    `;
-                    recentList.appendChild(div);
-                });
+                    if (sortedTeamActions.length === 0) {
+                        recentList.innerHTML += '<p class="text-secondary text-center">Nenhuma ação recente encontrada para a equipe.</p>';
+                    }
+
+                    sortedTeamActions.forEach(action => {
+                        const div = document.createElement('div');
+                        div.className = 'opportunity-card';
+                        div.style.padding = '12px';
+
+                        const time = new Date(action.data_acao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+                        div.innerHTML = `
+                            <div>
+                                <span class="product-name" style="font-size: 14px;">${action.produto}</span>
+                                <div style="font-size: 11px; color: #94a3b8;">
+                                    <i class="fas fa-user-circle"></i> <b>${action.vendedor_nome}</b> • ${action.cliente}
+                                </div>
+                                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${time}</div>
+                            </div>
+                            <div class="badge badge-profile" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: none;">
+                                <i class="fas fa-check mr-1"></i> Positivado
+                            </div>
+                        `;
+                        recentList.appendChild(div);
+                    });
+
+                } else {
+                    // === LISTA NORMAL (VENDEDOR) ===
+                    const sortedActions = actions.sort((a, b) => new Date(b.data_acao) - new Date(a.data_acao)).slice(0, 10);
+                    sortedActions.forEach(action => {
+                        const div = document.createElement('div');
+                        div.className = 'opportunity-card';
+                        div.style.padding = '12px';
+
+                        const time = new Date(action.data_acao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+                        div.innerHTML = `
+                            <div>
+                                <span class="product-name" style="font-size: 14px;">${action.produto}</span>
+                                <div style="font-size: 11px; color: #94a3b8;">
+                                    <i class="fas fa-user-circle"></i> ${action.vendedor_nome} • ${action.cliente}
+                                </div>
+                                <div style="font-size: 10px; color: #64748b; margin-top: 2px;">${time}</div>
+                            </div>
+                            <div class="badge badge-profile" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: none;">
+                                <i class="fas fa-check mr-1"></i> Positivado
+                            </div>
+                        `;
+                        recentList.appendChild(div);
+                    });
+                }
             }
         }
 
@@ -2726,6 +3078,98 @@ async function loadPerformanceDashboard(preservedDayFilter = null) {
     } catch (error) {
         console.error("Erro ao carregar performance:", error);
         showToast("Erro ao carregar dados de performance", "error");
+    } finally {
+        hideLoading();
+    }
+}
+
+// ============================================
+// FUNÇÃO EXPORTAÇÃO SUPERVISOR
+// ============================================
+
+async function exportSupervisorReport() {
+    if (currentMixUser.role !== 'supervisor') return;
+
+    showLoading('Gerando relatório da equipe...');
+
+    try {
+        let filterNames = [];
+        // Se selecionou um específico, busca só dele. Se não ("ALL"), busca de todos os liderados.
+        if (selectedSubordinateForSupervisor) {
+            filterNames = [selectedSubordinateForSupervisor];
+        } else {
+            // Se lista estiver vazia, tentar recarregar ou usar user atual? 
+            if (!supervisorSubordinatesList || supervisorSubordinatesList.length === 0) {
+                console.warn("Lista de liderados vazia, buscando apenas do supervisor.");
+                filterNames = [currentMixUser.name];
+            } else {
+                filterNames = [...supervisorSubordinatesList];
+                // Incluir o próprio supervisor também? Geralmente sim.
+                if (!filterNames.includes(currentMixUser.name)) {
+                    filterNames.push(currentMixUser.name);
+                }
+            }
+        }
+
+        console.log("Exportando dados para:", filterNames);
+
+        const { data, error } = await window.supabase
+            .from('acoes_vendedores')
+            .select('*')
+            .in('vendedor_nome', filterNames)
+            .eq('acao', 'positivado')
+            .order('data_acao', { ascending: false });
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            showToast('Nenhuma ação encontrada para os filtros atuais.', 'info');
+            hideLoading();
+            return;
+        }
+
+        // Preparar para Excel (SheetJS) - Mapeamento 1:1 com Supabase
+        const rows = data.map(item => ({
+            'id': item.id,
+            'vendedor_id': item.vendedor_id,
+            'vendedor_nome': item.vendedor_nome,
+            'vendedor_token': item.vendedor_token,
+            'categoria': item.categoria,
+            'produto': item.produto,
+            'cliente': item.cliente,
+            'consultor': item.consultor,
+            'rota': item.rota,
+            'perfil_cliente': item.perfil_cliente,
+            'acao': item.acao,
+            'mes_ano': item.mes_ano,
+            'data_acao': item.data_acao
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Positivados");
+
+        // Largura das colunas
+        const wscols = [
+            { wch: 20 }, // Vendedor
+            { wch: 30 }, // Cliente
+            { wch: 15 }, // Rota
+            { wch: 40 }, // Produto
+            { wch: 15 }, // Categoria
+            { wch: 10 }, // Perfil
+            { wch: 20 }, // Data
+            { wch: 10 }  // Mes
+        ];
+        ws['!cols'] = wscols;
+
+        const fileName = `Relatorio_Equipe_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        showToast(`Relatório gerado! ${data.length} registros exportados.`, 'success');
+
+    } catch (e) {
+        console.error(e);
+        showToast('Erro ao exportar: ' + e.message, 'error');
     } finally {
         hideLoading();
     }
