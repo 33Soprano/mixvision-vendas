@@ -196,7 +196,7 @@
 
                 <div class="footer-note">
                     <i class="fas fa-info-circle"></i>
-                    Token admin: <strong>admin-123</strong>
+                    Token admin: <strong>***</strong>
                 </div>
             </div>
         </div>
@@ -231,14 +231,31 @@
             <!-- ADMIN: Cadastrar Vendedor -->
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fas fa-user-plus"></i> Cadastrar Novo Vendedor</h3>
-                    <p>Crie tokens para novos vendedores</p>
+                    <h3><i class="fas fa-user-plus"></i> Cadastrar Novo Colaborador</h3>
+                    <p>Crie tokens para vendedores e supervisores</p>
                 </div>
                 <div class="form-row">
                     <div class="form-group flex-1">
-                        <label for="new-user-name">Nome do Vendedor</label>
+                        <label for="new-user-name">Nome do Colaborador</label>
                         <input type="text" id="new-user-name" class="form-control" placeholder="Ex: João Silva">
                     </div>
+
+                    <div class="form-group flex-1">
+                        <label for="new-user-role">Cargo</label>
+                        <select id="new-user-role" class="form-control" onchange="toggleSupervisorSelect()">
+                            <option value="user">Vendedor</option>
+                            <option value="supervisor">Supervisor</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group flex-1" id="supervisor-select-group">
+                        <label for="new-user-supervisor">Supervisor (Opcional)</label>
+                        <select id="new-user-supervisor" class="form-control">
+                            <option value="">Selecione...</option>
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+
                     <button id="create-user-btn" onclick="mixCreateUser()" class="btn-primary mt-4">
                         <i class="fas fa-plus"></i> Gerar Token
                     </button>
@@ -282,6 +299,47 @@
         </div>
     </div>
 
+    <!-- MODAL DE EDIÇÃO DE USUÁRIO -->
+    <div id="edit-user-modal" class="modal-overlay hidden"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="width: 100%; max-width: 500px; margin: 20px;">
+            <div class="card-header">
+                <h3><i class="fas fa-user-edit"></i> Editar Colaborador</h3>
+                <button onclick="closeEditModal()"
+                    style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.2rem;"><i
+                        class="fas fa-times"></i></button>
+            </div>
+
+            <input type="hidden" id="edit-user-id">
+
+            <div class="form-group">
+                <label for="edit-user-name">Nome do Colaborador</label>
+                <input type="text" id="edit-user-name" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="edit-user-role">Cargo</label>
+                <select id="edit-user-role" class="form-control" onchange="toggleEditSupervisorSelect()">
+                    <option value="user">Vendedor</option>
+                    <option value="supervisor">Supervisor</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="edit-supervisor-group">
+                <label for="edit-user-supervisor">Supervisor</label>
+                <select id="edit-user-supervisor" class="form-control">
+                    <option value="">Selecione...</option>
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button onclick="mixUpdateUser()" class="btn-primary" style="flex: 1;">Salvar Alterações</button>
+                <button onclick="closeEditModal()" class="btn-secondary" style="flex: 1;">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- DASHBOARD VENDEDOR -->
     <div id="dashboard-screen" class="screen">
         <div class="app-container">
@@ -294,6 +352,13 @@
                     <p class="subtitle" id="spreadsheet-help">Selecione uma planilha para analisar oportunidades</p>
                 </div>
                 <div class="header-right">
+                    <div id="supervisor-view-controls" style="display: none; margin-right: 15px;">
+                        <select id="supervisor-subordinate-select" class="glass-select"
+                            onchange="handleSupervisorChange()">
+                            <option value="">Meus Dados</option>
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
                     <button onclick="showScreen('performance-screen'); loadPerformanceDashboard()" class="btn-secondary"
                         style="margin-right: 10px;">
                         <i class="fas fa-chart-pie"></i> Performance
@@ -497,6 +562,10 @@
                         <option value="Sexta">Sexta-feira</option>
                         <option value="Sábado">Sábado</option>
                     </select>
+                    <button id="btn-export-supervisor" class="btn-primary hidden" onclick="exportSupervisorReport()"
+                        style="margin-right: 10px;">
+                        <i class="fas fa-file-excel mr-2"></i> Relatório Equipe
+                    </button>
                     <button onclick="loadDashboardScreen()" class="btn-secondary">
                         <i class="fas fa-arrow-left"></i> Voltar
                     </button>
@@ -511,7 +580,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-value text-green-400" id="perf-worked">0</div>
-                    <div class="stat-label">Produtos trabalhados esse mês</div>
+                    <div class="stat-label">Produtos positivado esse mês</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="perf-coverage">0%</div>
