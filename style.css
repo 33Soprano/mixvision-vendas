@@ -6,8 +6,13 @@
     /* Backgrounds */
     --bg-app: #0b1020;
     --bg-header: rgba(17, 24, 39, 0.85);
-    --bg-card: rgba(255, 255, 255, 0.045);
-    --bg-card-hover: rgba(255, 255, 255, 0.07);
+    /* Card interaction states */
+    --card-bg-default: rgba(255, 255, 255, 0.045);
+    --card-bg-hover: rgba(255, 255, 255, 0.07);
+    --card-bg-active: rgba(99, 102, 241, 0.18);
+
+    --card-text-default: #f9fafb;
+    --card-text-secondary: #9ca3af;
 
     /* Brand */
     --primary: #6366f1;
@@ -119,21 +124,33 @@ label {
 
 /* 5. Cards (Base do Dashboard) */
 .card {
-    background: var(--bg-card);
+    background: var(--card-bg-default);
     border: 1px solid var(--border-soft);
     border-radius: var(--radius-lg);
     padding: 24px;
-    /* Slightly more padding for breathability */
     backdrop-filter: var(--blur);
     box-shadow: var(--shadow-soft);
     transition: all 0.25s ease;
     margin-bottom: 24px;
+    color: var(--card-text-default);
 }
 
 .card:hover {
-    background: var(--bg-card-hover);
+    background: var(--card-bg-hover);
     transform: translateY(-2px);
     box-shadow: var(--shadow-strong);
+    border-color: var(--primary);
+}
+
+.card.active {
+    background: var(--card-bg-active);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+.card.active h3,
+.card.active span {
+    color: var(--text-primary);
 }
 
 .card-header {
@@ -494,7 +511,7 @@ select:focus,
 }
 
 .spreadsheet-card {
-    background: var(--bg-card);
+    background: var(--card-bg-default);
     border: 1px solid var(--border-soft);
     border-radius: var(--radius-lg);
     padding: 24px;
@@ -504,13 +521,25 @@ select:focus,
     position: relative;
     overflow: hidden;
     cursor: pointer;
+    color: var(--card-text-default);
 }
 
 .spreadsheet-card:hover {
-    background: var(--bg-card-hover);
+    background: var(--card-bg-hover);
     transform: translateY(-4px);
     box-shadow: var(--shadow-strong);
     border-color: var(--primary);
+}
+
+.spreadsheet-card.active {
+    background: var(--card-bg-active);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+.spreadsheet-card.active h4,
+.spreadsheet-card.active p {
+    color: var(--text-primary);
 }
 
 .spreadsheet-icon {
@@ -602,7 +631,7 @@ select:focus,
     justify-content: space-between;
     align-items: center;
     padding: 20px;
-    background: var(--bg-card);
+    background: var(--card-bg-default);
     border: 1px solid var(--border-soft);
     border-radius: var(--radius-md);
     margin-bottom: 16px;
@@ -640,3 +669,696 @@ select:focus,
 .users-grid {
     margin-top: 24px;
 }
+
+/* 14. Options / Actions inside cards */
+.card-options {
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: var(--shadow-strong);
+}
+
+.card-option {
+    padding: 10px 14px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.card-option:hover {
+    background: var(--primary-soft);
+    color: var(--text-primary);
+}
+
+/* 15. MixSelect (Custom Dropdown) */
+.mix-select-wrapper {
+    position: relative;
+    width: 100%;
+    user-select: none;
+}
+
+.mix-select-trigger {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.mix-select-wrapper.open .mix-select-trigger {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-soft);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.mix-select-trigger i {
+    transition: transform 0.3s ease;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.mix-select-wrapper.open .mix-select-trigger i {
+    transform: rotate(180deg);
+    color: var(--primary);
+}
+
+.mix-select-options {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: #0f172a !important;
+    /* Force solid dark background */
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    z-index: 9999;
+    box-shadow: var(--shadow-strong);
+    backdrop-filter: blur(20px);
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.mix-select-wrapper.open .mix-select-options {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.mix-select-option {
+    padding: 12px 16px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.mix-select-option:hover {
+    background: var(--primary-soft);
+    color: var(--text-primary);
+    padding-left: 20px;
+}
+
+.mix-select-option.selected {
+    background: var(--card-bg-active);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.mix-select-option.selected::after {
+    content: '\f00c';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    float: right;
+    font-size: 11px;
+    color: var(--primary);
+}
+
+/* Native select is hidden but functional for compatibility */
+.mix-select-native {
+    display: none !important;
+}
+
+/* =====================================================
+   CORREÇÕES PARA SELECTS
+   ===================================================== */
+
+/* Forçar fundo escuro em todos os selects */
+select:not(.mix-select-native) {
+    background-color: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #f1f5f9 !important;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 16px !important;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+/* Estilo para foco */
+select:not(.mix-select-native):focus {
+    border-color: #6366f1 !important;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Estilo para hover */
+select:not(.mix-select-native):hover {
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Estilo para opções dentro do select */
+select:not(.mix-select-native) option {
+    background-color: #0f172a !important;
+    color: #f1f5f9 !important;
+    padding: 10px !important;
+}
+
+/* Remove o fundo azul do Chrome ao clicar */
+select:not(.mix-select-native):active,
+select:not(.mix-select-native):focus {
+    background-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+/* Estilo específico para selects de filtro */
+.glass-select {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #f1f5f9 !important;
+    padding: 8px 32px 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 16px !important;
+    cursor: pointer;
+}
+
+/* Fix para Firefox */
+@-moz-document url-prefix() {
+    select:not(.mix-select-native),
+    .glass-select {
+        text-indent: 0.01px;
+        text-overflow: '';
+        padding-right: 40px !important;
+    }
+}
+
+/* Fix para Internet Explorer */
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+    select:not(.mix-select-native),
+    .glass-select {
+        padding-right: 40px !important;
+        background: rgba(15, 23, 42, 0.95) !important;
+    }
+}
+
+/* Garantir que selects dentro de formulários tenham estilo consistente */
+.form-control:is(select) {
+    background: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #f1f5f9 !important;
+}
+
+/* Remove o spinner padrão do Chrome em number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Estilo para selects desabilitados */
+select:not(.mix-select-native):disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: rgba(15, 23, 42, 0.5) !important;
+}
+
+/* =====================================================
+   CORREÇÕES ESPECÍFICAS PARA SELECTS DO DASHBOARD
+   ===================================================== */
+
+/* Selects na seção de filtros */
+#consultant-select,
+#route-select,
+#client-select,
+#supervisor-subordinate-select,
+#perf-day-filter {
+    min-width: 200px;
+    background-color: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid rgba(99, 102, 241, 0.3) !important;
+    color: #f1f5f9 !important;
+}
+
+/* Selects no painel admin */
+#new-user-role,
+#new-user-supervisor,
+#edit-user-role,
+#edit-user-supervisor {
+    background-color: rgba(15, 23, 42, 0.95) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #f1f5f9 !important;
+}
+
+/* Corrigir a altura dos selects para combinar com inputs */
+select:not(.mix-select-native) {
+    height: 44px;
+    line-height: 24px;
+}
+
+/* Garantir que o texto dentro dos selects seja visível */
+select:not(.mix-select-native) option:checked {
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    color: white !important;
+}
+
+select:not(.mix-select-native) option:hover {
+    background-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Remove qualquer estilo padrão do navegador */
+select:not(.mix-select-native)::-ms-expand {
+    display: none;
+}
+
+/* Estilo para selects em telas menores */
+@media (max-width: 768px) {
+    select:not(.mix-select-native),
+    .glass-select {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+
+/* =====================================================
+   MELHORIAS PARA AS ABAS DE OPORTUNIDADES
+   ===================================================== */
+
+/* Contêiner das abas */
+.tabs-container {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Botões das abas */
+.tab-button {
+    flex: 1;
+    padding: 16px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.tab-button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.tab-button.active {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.2), 
+        rgba(99, 102, 241, 0.1));
+    color: var(--text-primary);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+.tab-button.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, 
+        var(--primary), 
+        rgba(99, 102, 241, 0.7));
+    border-radius: 0 0 3px 3px;
+}
+
+/* Ícones específicos para cada aba */
+#tab-opportunities i {
+    color: #f59e0b; /* Laranja/Ouro para oportunidades */
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+#tab-opportunities.active i {
+    color: #fbbf24; /* Amarelo mais vibrante quando ativo */
+    animation: pulse 2s infinite;
+}
+
+#tab-sold i {
+    color: #10b981; /* Verde para vendidos */
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+#tab-sold.active i {
+    color: #34d399; /* Verde mais vibrante quando ativo */
+    animation: pulse 2s infinite;
+}
+
+/* Efeito de pulso para ícones ativos */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Badge de contador nas abas (opcional) */
+.tab-button::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--danger);
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+    display: none;
+}
+
+.tab-button[data-count]:not([data-count="0"])::after {
+    display: block;
+}
+
+#tab-opportunities[data-count]::after {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+#tab-sold[data-count]::after {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+/* =====================================================
+   CONTADOR DE OPORTUNIDADES MELHORADO
+   ===================================================== */
+
+.opportunity-count {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 30px 0 20px 0;
+    padding: 20px;
+    background: linear-gradient(135deg, 
+        rgba(15, 23, 42, 0.8), 
+        rgba(30, 41, 59, 0.8));
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.count-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.count-display {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+}
+
+/* Badge de perfil melhorado */
+#profile-badge {
+    background: linear-gradient(135deg, 
+        rgba(139, 92, 246, 0.2), 
+        rgba(139, 92, 246, 0.1));
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    color: #c4b5fd;
+    padding: 8px 16px;
+    font-weight: 600;
+}
+
+/* =====================================================
+   ÍCONES PERSONALIZADOS PARA OPORTUNIDADES E VENDIDOS
+   ===================================================== */
+
+/* Substituindo os ícones padrão por ícones mais descritivos */
+#tab-opportunities i::before {
+    content: "\f06b"; /* Ícone de alvo/bullseye do Font Awesome */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+}
+
+#tab-sold i::before {
+    content: "\f560"; /* Ícone de troféu/vitória do Font Awesome */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+}
+
+/* =====================================================
+   ESTILOS ESPECÍFICOS PARA OPORTUNIDADES DE VENDA
+   ===================================================== */
+
+/* Cabeçalho da seção de dados */
+#selected-spreadsheet-header {
+    margin-bottom: 30px;
+}
+
+.selected-spreadsheet-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    background: linear-gradient(135deg, 
+        rgba(30, 41, 59, 0.8), 
+        rgba(15, 23, 42, 0.8));
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.selected-spreadsheet-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    background: linear-gradient(135deg, 
+        var(--primary), 
+        rgba(99, 102, 241, 0.7));
+}
+
+/* =====================================================
+   CARTÕES DE OPORTUNIDADES MELHORADOS
+   ===================================================== */
+
+.opportunity-card {
+    background: linear-gradient(135deg, 
+        rgba(255, 255, 255, 0.03), 
+        rgba(255, 255, 255, 0.01));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.opportunity-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, 
+        rgba(99, 102, 241, 0), 
+        var(--primary), 
+        rgba(99, 102, 241, 0));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.opportunity-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: translateX(5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.opportunity-card:hover::before {
+    opacity: 1;
+}
+
+/* Cartões específicos para cada aba */
+#opportunities-list .opportunity-card {
+    border-left: 4px solid rgba(245, 158, 11, 0.3);
+}
+
+#opportunities-list .opportunity-card:hover {
+    border-left-color: #f59e0b;
+}
+
+/* Para itens já vendidos */
+#opportunities-list .opportunity-card.sold-item {
+    border-left: 4px solid rgba(16, 185, 129, 0.3);
+}
+
+#opportunities-list .opportunity-card.sold-item:hover {
+    border-left-color: #10b981;
+}
+
+.product-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+/* Botões de ação nos cartões */
+.opportunity-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-worked {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border: none;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-worked:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.btn-worked:active {
+    transform: scale(0.95);
+}
+
+/* Status de "trabalhado" */
+.status-worked {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.2), 
+        rgba(16, 185, 129, 0.1));
+    color: #34d399;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Botão de copiar */
+.opportunity-actions .btn-primary {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.2), 
+        rgba(99, 102, 241, 0.1));
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #818cf8;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.opportunity-actions .btn-primary:hover {
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.3), 
+        rgba(99, 102, 241, 0.2));
+    border-color: var(--primary);
+}
+
+/* =====================================================
+   ESTADO VAZIO MELHORADO
+   ===================================================== */
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    margin: 30px 0;
+}
+
+.empty-state-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: linear-gradient(135deg, 
+        rgba(99, 102, 241, 0.1), 
+        rgba(99, 102, 241, 0.05));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: var(--primary);
+}
+
+.empty-state h4 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+
+.empty-state p {
+    color: var(--text-secondary);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Ícones específicos para estado vazio */
+.empty-state.opportunities-empty .empty-state-icon i {
+    color: #f59e0b;
+}
+
+.empty-state.sold-empty .empty-state-icon i {
+    color: #10b981;
+}
+
