@@ -8,6 +8,123 @@ let firebaseDb = null;
 let currentTableName = null;
 let currentTableDisplayName = null;
 
+// ============================================
+// MIXSELECT - CUSTOM DROPDOWN COMPONENT
+// ============================================
+
+class MixSelect {
+    constructor(selectElement) {
+        if (typeof selectElement === 'string') {
+            this.nativeSelect = document.getElementById(selectElement);
+        } else {
+            this.nativeSelect = selectElement;
+        }
+
+        if (!this.nativeSelect) return;
+        if (this.nativeSelect.dataset.enhanced) return;
+        this.nativeSelect.dataset.enhanced = 'true';
+
+        this.id = this.nativeSelect.id;
+        this.wrapper = null;
+        this.trigger = null;
+        this.optionsContainer = null;
+        this.isOpen = false;
+
+        this.init();
+    }
+
+    init() {
+        this.nativeSelect.classList.add('mix-select-native');
+        this.wrapper = document.createElement('div');
+        this.wrapper.className = 'mix-select-wrapper';
+        this.wrapper.id = 'mix-select-' + this.id;
+
+        this.trigger = document.createElement('div');
+        this.trigger.className = 'mix-select-trigger';
+        this.trigger.innerHTML = `<span>${this.getSelectedText()}</span><i class="fas fa-chevron-down"></i>`;
+
+        this.optionsContainer = document.createElement('div');
+        this.optionsContainer.className = 'mix-select-options';
+
+        this.wrapper.appendChild(this.trigger);
+        this.wrapper.appendChild(this.optionsContainer);
+        this.nativeSelect.parentNode.insertBefore(this.wrapper, this.nativeSelect.nextSibling);
+
+        this.renderOptions();
+        this.bindEvents();
+        this.setupObserver();
+    }
+
+    getSelectedText() {
+        const selected = this.nativeSelect.options[this.nativeSelect.selectedIndex];
+        return (selected && selected.text) ? selected.text : (this.nativeSelect.getAttribute('placeholder') || 'Selecionar...');
+    }
+
+    renderOptions() {
+        this.optionsContainer.innerHTML = '';
+        if (this.nativeSelect.options.length === 0) {
+            this.optionsContainer.innerHTML = '<div class="mix-select-option" style="opacity: 0.5; cursor: default;">Nenhuma opção disponível</div>';
+            return;
+        }
+        Array.from(this.nativeSelect.options).forEach((opt, index) => {
+            const div = document.createElement('div');
+            div.className = 'mix-select-option';
+            if (this.nativeSelect.selectedIndex === index) div.classList.add('selected');
+            div.textContent = opt.text;
+            div.dataset.value = opt.value;
+            div.onclick = (e) => {
+                e.stopPropagation();
+                this.selectOption(index);
+                this.close();
+            };
+            this.optionsContainer.appendChild(div);
+        });
+    }
+
+    selectOption(index) {
+        this.nativeSelect.selectedIndex = index;
+        this.trigger.querySelector('span').textContent = this.nativeSelect.options[index].text;
+        this.optionsContainer.querySelectorAll('.mix-select-option').forEach((el, i) => {
+            el.classList.toggle('selected', i === index);
+        });
+        this.nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    bindEvents() {
+        this.trigger.onclick = (e) => {
+            e.stopPropagation();
+            this.toggle();
+        };
+        if (!window._mixSelectGlobalBound) {
+            document.addEventListener('click', () => {
+                document.querySelectorAll('.mix-select-wrapper.open').forEach(el => el.classList.remove('open'));
+            });
+            window._mixSelectGlobalBound = true;
+        }
+    }
+
+    toggle() { if (this.isOpen) this.close(); else this.open(); }
+    open() {
+        document.querySelectorAll('.mix-select-wrapper.open').forEach(el => { if (el !== this.wrapper) el.classList.remove('open'); });
+        this.isOpen = true; this.wrapper.classList.add('open');
+    }
+    close() { this.isOpen = false; this.wrapper.classList.remove('open'); }
+    setupObserver() {
+        const observer = new MutationObserver(() => this.renderOptions());
+        observer.observe(this.nativeSelect, { childList: true });
+        this.nativeSelect.addEventListener('change', () => {
+            this.trigger.querySelector('span').textContent = this.getSelectedText();
+            this.renderOptions();
+        });
+    }
+}
+
+function enhanceAllSelects() {
+    document.querySelectorAll('select:not(.mix-select-native)').forEach(sel => {
+        if (sel.id) new MixSelect(sel);
+    });
+}
+
 // CONFIGURE AQUI O ID DO SEU PROJETO SUPABASE
 const SUPABASE_PROJECT_ID = 'llcewofzmpyczwfoljem'; // ← SEU PROJETO SUPABASE
 
@@ -597,6 +714,8 @@ async function mixLoadUsers() {
             supervisorsList.forEach(sup => {
                 supervisorSelect.innerHTML += `<option value="${sup.id}">${sup.name}</option>`;
             });
+            // Enhance with MixSelect
+            setTimeout(() => new MixSelect(supervisorSelect), 50);
         }
 
         // 2. Renderizar Lista
@@ -728,6 +847,8 @@ async function loadDashboardScreen() {
         initializeApp();
         loadAvailableTables();
         mixLoadData();
+        // Enhance all dashboard selects
+        enhanceAllSelects();
     }, 100);
 }
 
@@ -2132,13 +2253,14 @@ function renderList() {
     if (emptyState) emptyState.classList.add('hidden');
 
     if (items.length === 0) {
+        const emptyClass = currentTab === 'opportunities' ? 'opportunities-empty' : 'sold-empty';
         opportunitiesList.innerHTML = `
-            <div class="empty-state">
+            <div class="empty-state ${emptyClass}">
                 <div class="empty-state-icon">
-                    ${currentTab === 'opportunities' ? '🎉' : '📊'}
+                    <i class="fas ${currentTab === 'opportunities' ? 'fa-bullseye' : 'fa-check-circle'}"></i>
                 </div>
                 <h4>
-                    ${currentTab === 'opportunidades' ? 'Cliente já comprou todo o mix!' : 'Nenhum item vendido ainda.'}
+                    ${currentTab === 'opportunities' ? 'Cliente já comprou todo o mix!' : 'Nenhum item vendido ainda.'}
                 </h4>
                 <p class="text-secondary">
                     ${currentTab === 'opportunities' ? 'Excelente positivado!' : 'Comece a vender para ver os dados aqui.'}
@@ -2176,7 +2298,8 @@ function renderList() {
                 `;
             }
         } else {
-            actionBtn = `<span class="text-green-400 text-sm"><i class="fas fa-check-circle mr-1"></i>Vendido</span>`;
+            actionBtn = `<span class="status-worked" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.2);">
+                <i class="fas fa-check-circle mr-1"></i>Vendido</span>`;
         }
 
         div.innerHTML = `
@@ -2511,6 +2634,9 @@ async function loadAdminTables() {
 // ============================================
 
 function initializeApp() {
+    // Adicione esta linha:
+    setTimeout(enhanceAllSelects, 100);
+
     consultantSelect = document.getElementById('consultant-select');
     routeGroup = document.getElementById('route-group');
     opportunitiesList = document.getElementById('opportunities-list');
