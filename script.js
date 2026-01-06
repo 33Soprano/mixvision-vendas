@@ -2530,8 +2530,51 @@ function debugPlanilha() {
 }
 
 // ============================================
-// UTILITÁRIOS GLOBAIS
+// UTILITÁRIOS GLOBAIS E MOBILE
 // ============================================
+
+/**
+ * Detecta se o dispositivo atual é móvel
+ */
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+}
+
+/**
+ * Inicializa otimizações específicas para mobile
+ */
+function initMobileOptimizations() {
+    if (!isMobileDevice()) return;
+
+    console.log("📱 Dispositivo móvel detectado. Aplicando otimizações...");
+
+    // 1. Reduzir logs no console para performance no mobile
+    const originalLog = window.log;
+    if (typeof originalLog === 'function') {
+        window.log = (msg) => {
+            // Apenas loga mensagens críticas ou de feedback direto no mobile
+            if (msg.includes('Erro') || msg.includes('sucesso') || msg.includes('inicializado') || msg.includes('positivado')) {
+                originalLog(msg);
+            }
+        };
+    }
+
+    // 2. Feedback visual de toque via JS (complemento ao CSS :active)
+    document.addEventListener('touchstart', (e) => {
+        const target = e.target.closest('.opportunity-card, .tab-button, .btn-worked, .btn-primary');
+        if (target) {
+            target.style.transition = 'transform 0.1s ease';
+            target.style.transform = 'scale(0.98)';
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        const target = e.target.closest('.opportunity-card, .tab-button, .btn-worked, .btn-primary');
+        if (target) {
+            target.style.transform = 'scale(1)';
+        }
+    }, { passive: true });
+}
 
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -2634,6 +2677,9 @@ async function loadAdminTables() {
 // ============================================
 
 function initializeApp() {
+    // Inicializar otimizações mobile primeiro
+    initMobileOptimizations();
+
     // Adicione esta linha:
     setTimeout(enhanceAllSelects, 100);
 
