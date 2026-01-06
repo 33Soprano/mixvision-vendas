@@ -3,8 +3,37 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>MixVision | Dashboard de Vendas</title>
+
+    <style>
+        /* Melhorias para dispositivos touch */
+        @media (hover: none) {
+
+            .btn-worked:active,
+            .btn-primary:active,
+            .tab-button:active,
+            .opportunity-card:active {
+                transform: scale(0.96);
+                opacity: 0.8;
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+
+            /* Remover efeitos de hover em touch para evitar 'stickiness' */
+            .opportunity-card:hover {
+                transform: none !important;
+            }
+        }
+
+        /* Prevenir zoom em inputs no iOS */
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            font-size: 16px !important;
+        }
+    </style>
 
     <!-- Firebase SDK (para autenticação) -->
     <script type="module">
@@ -473,17 +502,20 @@
                     <!-- Abas -->
                     <div class="tabs-container">
                         <button id="tab-opportunities" class="tab-button active">
-                            <svg class="tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2"/>
-                                <path d="M12 8v4l3 3" stroke-width="2" stroke-linecap="round"/>
+                            <svg class="tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor">
+                                <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2" />
+                                <path d="M12 8v4l3 3" stroke-width="2" stroke-linecap="round" />
                             </svg>
                             <span>Oportunidades</span>
                         </button>
-                
+
                         <button id="tab-sold" class="tab-button">
-                            <svg class="tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke-width="2" stroke-linecap="round"/>
-                                <path d="M22 4L12 14.01l-3-3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <svg class="tab-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor">
+                                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke-width="2" stroke-linecap="round" />
+                                <path d="M22 4L12 14.01l-3-3" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
                             </svg>
                             <span>Já Vendidos</span>
                         </button>
