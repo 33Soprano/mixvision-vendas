@@ -859,6 +859,7 @@ select:not(.mix-select-native):focus {
 
 /* Fix para Firefox */
 @-moz-document url-prefix() {
+
     select:not(.mix-select-native),
     .glass-select {
         text-indent: 0.01px;
@@ -868,7 +869,9 @@ select:not(.mix-select-native):focus {
 }
 
 /* Fix para Internet Explorer */
-@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+@media all and (-ms-high-contrast: none),
+(-ms-high-contrast: active) {
+
     select:not(.mix-select-native),
     .glass-select {
         padding-right: 40px !important;
@@ -946,6 +949,7 @@ select:not(.mix-select-native)::-ms-expand {
 
 /* Estilo para selects em telas menores */
 @media (max-width: 768px) {
+
     select:not(.mix-select-native),
     .glass-select {
         width: 100%;
@@ -996,9 +1000,9 @@ select:not(.mix-select-native)::-ms-expand {
 }
 
 .tab-button.active {
-    background: linear-gradient(135deg, 
-        rgba(99, 102, 241, 0.2), 
-        rgba(99, 102, 241, 0.1));
+    background: linear-gradient(135deg,
+            rgba(99, 102, 241, 0.2),
+            rgba(99, 102, 241, 0.1));
     color: var(--text-primary);
     border: 1px solid rgba(99, 102, 241, 0.4);
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
@@ -1011,32 +1015,36 @@ select:not(.mix-select-native)::-ms-expand {
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, 
-        var(--primary), 
-        rgba(99, 102, 241, 0.7));
+    background: linear-gradient(90deg,
+            var(--primary),
+            rgba(99, 102, 241, 0.7));
     border-radius: 0 0 3px 3px;
 }
 
 /* Ícones específicos para cada aba */
 #tab-opportunities i {
-    color: #f59e0b; /* Laranja/Ouro para oportunidades */
+    color: #f59e0b;
+    /* Laranja/Ouro para oportunidades */
     font-size: 16px;
     transition: all 0.3s ease;
 }
 
 #tab-opportunities.active i {
-    color: #fbbf24; /* Amarelo mais vibrante quando ativo */
+    color: #fbbf24;
+    /* Amarelo mais vibrante quando ativo */
     animation: pulse 2s infinite;
 }
 
 #tab-sold i {
-    color: #10b981; /* Verde para vendidos */
+    color: #10b981;
+    /* Verde para vendidos */
     font-size: 16px;
     transition: all 0.3s ease;
 }
 
 #tab-sold.active i {
-    color: #34d399; /* Verde mais vibrante quando ativo */
+    color: #34d399;
+    /* Verde mais vibrante quando ativo */
     animation: pulse 2s infinite;
 }
 
@@ -1045,9 +1053,11 @@ select:not(.mix-select-native)::-ms-expand {
     0% {
         transform: scale(1);
     }
+
     50% {
         transform: scale(1.1);
     }
+
     100% {
         transform: scale(1);
     }
@@ -1092,9 +1102,9 @@ select:not(.mix-select-native)::-ms-expand {
     align-items: center;
     margin: 30px 0 20px 0;
     padding: 20px;
-    background: linear-gradient(135deg, 
-        rgba(15, 23, 42, 0.8), 
-        rgba(30, 41, 59, 0.8));
+    background: linear-gradient(135deg,
+            rgba(15, 23, 42, 0.8),
+            rgba(30, 41, 59, 0.8));
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -1118,9 +1128,9 @@ select:not(.mix-select-native)::-ms-expand {
 
 /* Badge de perfil melhorado */
 #profile-badge {
-    background: linear-gradient(135deg, 
-        rgba(139, 92, 246, 0.2), 
-        rgba(139, 92, 246, 0.1));
+    background: linear-gradient(135deg,
+            rgba(139, 92, 246, 0.2),
+            rgba(139, 92, 246, 0.1));
     border: 1px solid rgba(139, 92, 246, 0.4);
     color: #c4b5fd;
     padding: 8px 16px;
@@ -1133,13 +1143,15 @@ select:not(.mix-select-native)::-ms-expand {
 
 /* Substituindo os ícones padrão por ícones mais descritivos */
 #tab-opportunities i::before {
-    content: "\f06b"; /* Ícone de alvo/bullseye do Font Awesome */
+    content: "\f06b";
+    /* Ícone de alvo/bullseye do Font Awesome */
     font-family: 'Font Awesome 6 Free';
     font-weight: 900;
 }
 
 #tab-sold i::before {
-    content: "\f560"; /* Ícone de troféu/vitória do Font Awesome */
+    content: "\f560";
+    /* Ícone de troféu/vitória do Font Awesome */
     font-family: 'Font Awesome 6 Free';
     font-weight: 900;
 }
@@ -1158,9 +1170,9 @@ select:not(.mix-select-native)::-ms-expand {
     align-items: center;
     gap: 20px;
     padding: 24px;
-    background: linear-gradient(135deg, 
-        rgba(30, 41, 59, 0.8), 
-        rgba(15, 23, 42, 0.8));
+    background: linear-gradient(135deg,
+            rgba(30, 41, 59, 0.8),
+            rgba(15, 23, 42, 0.8));
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -1173,9 +1185,9 @@ select:not(.mix-select-native)::-ms-expand {
     align-items: center;
     justify-content: center;
     font-size: 24px;
-    background: linear-gradient(135deg, 
-        var(--primary), 
-        rgba(99, 102, 241, 0.7));
+    background: linear-gradient(135deg,
+            var(--primary),
+            rgba(99, 102, 241, 0.7));
 }
 
 /* =====================================================
@@ -1183,9 +1195,9 @@ select:not(.mix-select-native)::-ms-expand {
    ===================================================== */
 
 .opportunity-card {
-    background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.03), 
-        rgba(255, 255, 255, 0.01));
+    background: linear-gradient(135deg,
+            rgba(255, 255, 255, 0.03),
+            rgba(255, 255, 255, 0.01));
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     padding: 20px;
@@ -1205,10 +1217,10 @@ select:not(.mix-select-native)::-ms-expand {
     top: 0;
     bottom: 0;
     width: 4px;
-    background: linear-gradient(to bottom, 
-        rgba(99, 102, 241, 0), 
-        var(--primary), 
-        rgba(99, 102, 241, 0));
+    background: linear-gradient(to bottom,
+            rgba(99, 102, 241, 0),
+            var(--primary),
+            rgba(99, 102, 241, 0));
     opacity: 0;
     transition: opacity 0.3s ease;
 }
@@ -1281,9 +1293,9 @@ select:not(.mix-select-native)::-ms-expand {
 
 /* Status de "trabalhado" */
 .status-worked {
-    background: linear-gradient(135deg, 
-        rgba(16, 185, 129, 0.2), 
-        rgba(16, 185, 129, 0.1));
+    background: linear-gradient(135deg,
+            rgba(16, 185, 129, 0.2),
+            rgba(16, 185, 129, 0.1));
     color: #34d399;
     padding: 6px 12px;
     border-radius: 20px;
@@ -1297,9 +1309,9 @@ select:not(.mix-select-native)::-ms-expand {
 
 /* Botão de copiar */
 .opportunity-actions .btn-primary {
-    background: linear-gradient(135deg, 
-        rgba(99, 102, 241, 0.2), 
-        rgba(99, 102, 241, 0.1));
+    background: linear-gradient(135deg,
+            rgba(99, 102, 241, 0.2),
+            rgba(99, 102, 241, 0.1));
     border: 1px solid rgba(99, 102, 241, 0.3);
     color: #818cf8;
     padding: 6px 12px;
@@ -1307,9 +1319,9 @@ select:not(.mix-select-native)::-ms-expand {
 }
 
 .opportunity-actions .btn-primary:hover {
-    background: linear-gradient(135deg, 
-        rgba(99, 102, 241, 0.3), 
-        rgba(99, 102, 241, 0.2));
+    background: linear-gradient(135deg,
+            rgba(99, 102, 241, 0.3),
+            rgba(99, 102, 241, 0.2));
     border-color: var(--primary);
 }
 
@@ -1330,9 +1342,9 @@ select:not(.mix-select-native)::-ms-expand {
     width: 80px;
     height: 80px;
     margin: 0 auto 20px;
-    background: linear-gradient(135deg, 
-        rgba(99, 102, 241, 0.1), 
-        rgba(99, 102, 241, 0.05));
+    background: linear-gradient(135deg,
+            rgba(99, 102, 241, 0.1),
+            rgba(99, 102, 241, 0.05));
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1362,3 +1374,301 @@ select:not(.mix-select-native)::-ms-expand {
     color: #10b981;
 }
 
+/* =====================================================
+   RESPONSIVIDADE E OTIMIZAÇÕES MOBILE
+   ===================================================== */
+
+/* Tablets e iPads (1024px e abaixo) */
+@media (max-width: 1024px) {
+    .container {
+        padding: 0 20px;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+}
+
+/* Celulares e Tablets em Retrato (768px e abaixo) */
+@media (max-width: 768px) {
+    body {
+        padding-top: 60px;
+    }
+
+    .header-content {
+        padding: 10px 15px;
+    }
+
+    .header-logo {
+        font-size: 18px;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px;
+    }
+
+    .form-group select,
+    .form-group input {
+        width: 100%;
+        height: 46px;
+    }
+
+    .tabs-container {
+        flex-direction: column;
+        gap: 8px;
+        background: transparent;
+        border: none;
+        padding: 0;
+    }
+
+    .tab-button {
+        width: 100%;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        justify-content: flex-start;
+    }
+
+    .tab-button.active::before {
+        height: 100%;
+        width: 4px;
+        left: 0;
+        top: 0;
+        border-radius: 4px 0 0 4px;
+    }
+
+    .opportunity-count {
+        flex-direction: column;
+        text-align: center;
+        gap: 15px;
+        padding: 15px;
+    }
+
+    .opportunity-card {
+        padding: 15px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .product-name {
+        width: 100%;
+        font-size: 14px;
+    }
+
+    .opportunity-actions {
+        width: 100%;
+        justify-content: space-between;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        padding-top: 10px;
+    }
+
+    /* Modal Admin Responsivo */
+    .modal-content {
+        width: 92%;
+        margin: 5% auto;
+        padding: 20px;
+    }
+}
+
+/* Celulares Pequenos (380px e abaixo) */
+@media (max-width: 380px) {
+    .count-display {
+        font-size: 20px;
+    }
+
+    .badge-profile {
+        font-size: 10px;
+        padding: 4px 8px;
+    }
+
+    .btn-worked {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+/* Suporte para Safe Areas (iPhone) */
+@supports (padding: env(safe-area-inset-bottom)) {
+    .container {
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+}
+
+/* Prevenção de efeitos de hover 'presos' no mobile */
+@media (hover: none) {
+    .opportunity-card:hover {
+        transform: none !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+    }
+}
+
+/* =====================================================
+   CORREÇÃO DO HEADER PARA MOBILE
+   ===================================================== */
+
+@media (max-width: 768px) {
+
+    /* HEADER PRINCIPAL - QUEBRAR EM COLUNA */
+    .app-header {
+        flex-direction: column;
+        align-items: stretch;
+        /* Esticar para usar toda largura */
+        gap: 20px;
+        padding: 16px;
+        text-align: center;
+    }
+
+    /* LADO ESQUERDO - TÍTULO */
+    .header-left {
+        width: 100%;
+        order: 1;
+        margin-bottom: 0;
+    }
+
+    .header-left h1 {
+        font-size: 22px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .header-left h1 i {
+        margin-right: 0;
+        margin-bottom: 8px;
+    }
+
+    .subtitle {
+        font-size: 13px;
+        margin: 8px auto;
+        max-width: 280px;
+        line-height: 1.4;
+    }
+
+    /* LADO DIREITO - USUÁRIO E CONTROLES */
+    .header-right {
+        width: 100%;
+        order: 2;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        margin-top: 0;
+    }
+
+    /* CONTROLES DO SUPERVISOR (se houver) */
+    #supervisor-view-controls {
+        width: 100%;
+        justify-content: center;
+        margin: 0 0 10px 0 !important;
+    }
+
+    #supervisor-subordinate-select {
+        width: 100%;
+        max-width: 300px;
+    }
+
+    /* BOTÃO PERFORMANCE */
+    .header-right>button.btn-secondary {
+        width: 100%;
+        max-width: 300px;
+        justify-content: center;
+        margin: 0 0 10px 0 !important;
+    }
+
+    /* ÁREA DO USUÁRIO */
+    .user-welcome {
+        width: 100%;
+        max-width: 300px;
+        justify-content: center;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        margin-bottom: 10px;
+    }
+
+    /* BOTÃO SAIR */
+    .btn-logout {
+        width: 100%;
+        max-width: 300px;
+        justify-content: center;
+        order: 3;
+        /* Colocar embaixo */
+    }
+
+    /* REORGANIZAÇÃO DOS ELEMENTOS DENTRO DO HEADER-RIGHT */
+    .header-right>* {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+
+    /* Para telas muito pequenas (iPhone SE) */
+    @media (max-width: 375px) {
+        .user-welcome {
+            flex-direction: column;
+            text-align: center;
+            gap: 8px;
+        }
+
+        .user-avatar {
+            margin-bottom: 4px;
+        }
+    }
+}
+
+/* CORREÇÃO ESPECÍFICA PARA O DASHBOARD SCREEN */
+#dashboard-screen .app-header {
+    padding: 16px 12px;
+}
+
+#dashboard-screen .header-right {
+    gap: 12px;
+}
+
+/* Garantir que o botão Performance fique acima da área do usuário */
+#dashboard-screen .header-right>button.btn-secondary {
+    order: 1;
+}
+
+#dashboard-screen #supervisor-view-controls {
+    order: 2;
+}
+
+#dashboard-screen .user-welcome {
+    order: 3;
+}
+
+#dashboard-screen .btn-logout {
+    order: 4;
+}
+
+/* Para quando NÃO for supervisor (apenas usuário + botão sair) */
+@media (max-width: 768px) {
+    .header-right:has(:not(#supervisor-view-controls)) {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    .header-right:has(:not(#supervisor-view-controls)) .user-welcome {
+        width: auto;
+        max-width: none;
+        order: 1;
+        margin: 0;
+    }
+
+    .header-right:has(:not(#supervisor-view-controls)) .btn-logout {
+        width: auto;
+        max-width: none;
+        order: 2;
+        margin: 0;
+    }
+}
