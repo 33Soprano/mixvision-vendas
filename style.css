@@ -104,6 +104,10 @@ label {
     position: sticky;
     top: 0;
     z-index: 100;
+    max-width: 100vw;
+    overflow-x: hidden;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .header-left {
@@ -119,7 +123,27 @@ label {
 .header-right {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
+    /* Permite que o conteúdo encolha */
+}
+
+/* Garantir que os elementos dentro do header-right não causem overflow */
+.header-right>* {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Para o seletor de supervisor quando visível */
+#supervisor-view-controls {
+    max-width: 250px;
+    width: 100%;
+}
+
+#supervisor-subordinate-select {
+    max-width: 100%;
 }
 
 /* 5. Cards (Base do Dashboard) */
@@ -164,11 +188,26 @@ label {
 }
 
 /* 6. Métricas / Stats */
+/* Grid de estatísticas */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
     margin-bottom: 32px;
+}
+
+/* Grid de filtros */
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+/* Garantir que selects dentro de filtros não quebrem layout */
+.filters-grid .form-control,
+.filters-grid select {
+    width: 100%;
+    min-width: 0;
 }
 
 .stat-card {
@@ -318,6 +357,7 @@ select:focus,
     font-size: 32px;
     background: linear-gradient(135deg, #fff 0%, #9ca3af 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 8px;
 }
@@ -381,11 +421,33 @@ select:focus,
 }
 
 /* 10. Tabs / Filtros */
+/* Ajustar o header da seção de planilhas */
+.spreadsheet-selector-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+/* Filtros de categoria - corrigir overflow */
 .category-filters {
     display: flex;
-    gap: 10px;
     flex-wrap: wrap;
-    margin-bottom: 24px;
+    gap: 8px;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 5px;
+}
+
+.category-filters::-webkit-scrollbar {
+    height: 4px;
+}
+
+.category-filters::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 2px;
 }
 
 .category-filter-btn {
@@ -1165,16 +1227,33 @@ select:not(.mix-select-native)::-ms-expand {
     margin-bottom: 30px;
 }
 
+/* Ajustar header da planilha selecionada */
 .selected-spreadsheet-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 20px;
-    padding: 24px;
+    gap: 15px;
+    padding: 20px;
     background: linear-gradient(135deg,
             rgba(30, 41, 59, 0.8),
             rgba(15, 23, 42, 0.8));
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.selected-spreadsheet-header>div {
+    flex: 1;
+    min-width: 250px;
+}
+
+.spreadsheet-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.spreadsheet-actions button {
+    white-space: nowrap;
 }
 
 .selected-spreadsheet-icon {
@@ -1515,21 +1594,27 @@ select:not(.mix-select-native)::-ms-expand {
 
 @media (max-width: 768px) {
 
-    /* HEADER PRINCIPAL - QUEBRAR EM COLUNA */
+    /* Header em telas pequenas */
     .app-header {
         flex-direction: column;
         align-items: stretch;
-        /* Esticar para usar toda largura */
+        text-align: center;
         gap: 20px;
         padding: 16px;
+    }
+
+    .header-left,
+    .header-right {
+        width: 100%;
         text-align: center;
     }
 
-    /* LADO ESQUERDO - TÍTULO */
-    .header-left {
-        width: 100%;
-        order: 1;
-        margin-bottom: 0;
+    .header-right {
+        justify-content: center;
+        margin-top: 15px;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
     }
 
     .header-left h1 {
@@ -1540,11 +1625,6 @@ select:not(.mix-select-native)::-ms-expand {
         gap: 8px;
     }
 
-    .header-left h1 i {
-        margin-right: 0;
-        margin-bottom: 8px;
-    }
-
     .subtitle {
         font-size: 13px;
         margin: 8px auto;
@@ -1552,37 +1632,43 @@ select:not(.mix-select-native)::-ms-expand {
         line-height: 1.4;
     }
 
-    /* LADO DIREITO - USUÁRIO E CONTROLES */
-    .header-right {
-        width: 100%;
-        order: 2;
+    /* Ajustar o layout do header-right no dashboard */
+    #dashboard-screen .header-right {
         flex-direction: column;
         align-items: center;
-        gap: 16px;
-        margin-top: 0;
     }
 
-    /* CONTROLES DO SUPERVISOR (se houver) */
-    #supervisor-view-controls {
-        width: 100%;
-        justify-content: center;
-        margin: 0 0 10px 0 !important;
-    }
-
-    #supervisor-subordinate-select {
+    #dashboard-screen #supervisor-view-controls,
+    #dashboard-screen .header-right>button.btn-secondary,
+    #dashboard-screen .user-welcome,
+    #dashboard-screen .btn-logout {
         width: 100%;
         max-width: 300px;
+        margin: 5px 0;
     }
 
-    /* BOTÃO PERFORMANCE */
-    .header-right>button.btn-secondary {
-        width: 100%;
-        max-width: 300px;
+    /* Ajustar header da planilha selecionada */
+    .selected-spreadsheet-header {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .spreadsheet-actions {
         justify-content: center;
-        margin: 0 0 10px 0 !important;
+        width: 100%;
     }
 
-    /* ÁREA DO USUÁRIO */
+    .spreadsheet-actions button {
+        width: 100%;
+        max-width: 200px;
+    }
+
+    /* Ajustar filtros de categoria */
+    .category-filters {
+        justify-content: center;
+    }
+
+    /* Área do usuário */
     .user-welcome {
         width: 100%;
         max-width: 300px;
@@ -1593,58 +1679,58 @@ select:not(.mix-select-native)::-ms-expand {
         margin-bottom: 10px;
     }
 
-    /* BOTÃO SAIR */
+    /* Botão Sair */
     .btn-logout {
         width: 100%;
         max-width: 300px;
         justify-content: center;
-        order: 3;
-        /* Colocar embaixo */
-    }
-
-    /* REORGANIZAÇÃO DOS ELEMENTOS DENTRO DO HEADER-RIGHT */
-    .header-right>* {
-        width: 100%;
-        display: flex;
-        justify-content: center;
-    }
-
-    /* Para telas muito pequenas (iPhone SE) */
-    @media (max-width: 375px) {
-        .user-welcome {
-            flex-direction: column;
-            text-align: center;
-            gap: 8px;
-        }
-
-        .user-avatar {
-            margin-bottom: 4px;
-        }
     }
 }
 
 /* CORREÇÃO ESPECÍFICA PARA O DASHBOARD SCREEN */
+/* Corrigir layout do header no dashboard */
 #dashboard-screen .app-header {
-    padding: 16px 12px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
 }
 
 #dashboard-screen .header-right {
-    gap: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+    width: 100%;
+}
+
+#dashboard-screen .header-right>* {
+    flex-shrink: 1;
+    min-width: 0;
 }
 
 /* Garantir que o botão Performance fique acima da área do usuário */
-#dashboard-screen .header-right>button.btn-secondary {
-    order: 1;
-}
-
+/* Controles de supervisor no dashboard */
 #dashboard-screen #supervisor-view-controls {
-    order: 2;
+    order: 1;
+    width: 100%;
+    max-width: 300px;
+    margin-right: 0;
 }
 
+/* Botão Performance no dashboard */
+#dashboard-screen .header-right>button.btn-secondary {
+    order: 2;
+    margin-right: 0;
+}
+
+/* Área do usuário no dashboard */
 #dashboard-screen .user-welcome {
     order: 3;
+    min-width: 0;
+    flex-shrink: 1;
 }
 
+/* Botão Sair no dashboard */
 #dashboard-screen .btn-logout {
     order: 4;
 }
@@ -1671,4 +1757,18 @@ select:not(.mix-select-native)::-ms-expand {
         order: 2;
         margin: 0;
     }
+}
+/* Classe utilitária para prevenir overflow */
+.no-overflow {
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+/* Aplicar em elementos específicos se necessário */
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
