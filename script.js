@@ -3260,89 +3260,71 @@ async function loadPerformanceDashboard(preservedDayFilter = null) {
 // ============================================
 
 async function exportSupervisorReport() {
-    if (currentMixUser.role !== 'supervisor') return;
-
-    showLoading('Gerando relatório da equipe...');
-
     try {
-        let filterNames = [];
-        // Se selecionou um específico, busca só dele. Se não ("ALL"), busca de todos os liderados.
-        if (selectedSubordinateForSupervisor) {
-            filterNames = [selectedSubordinateForSupervisor];
-        } else {
-            // Se lista estiver vazia, tentar recarregar ou usar user atual? 
-            if (!supervisorSubordinatesList || supervisorSubordinatesList.length === 0) {
-                console.warn("Lista de liderados vazia, buscando apenas do supervisor.");
-                filterNames = [currentMixUser.name];
-            } else {
-                filterNames = [...supervisorSubordinatesList];
-                // Incluir o próprio supervisor também? Geralmente sim.
-                if (!filterNames.includes(currentMixUser.name)) {
-                    filterNames.push(currentMixUser.name);
-                }
-            }
-        }
+        showLoading('Exportando todos os dados...');
 
-        console.log("Exportando dados para:", filterNames);
-
+        // 👉 BUSCAR TODOS OS DADOS (sem filtro)
         const { data, error } = await window.supabase
             .from('acoes_vendedores')
             .select('*')
-            .in('vendedor_nome', filterNames)
-            .eq('acao', 'positivado')
             .order('data_acao', { ascending: false });
 
         if (error) throw error;
 
         if (!data || data.length === 0) {
-            showToast('Nenhuma ação encontrada para os filtros atuais.', 'info');
+            showToast('Nenhum dado encontrado na tabela.', 'info');
             hideLoading();
             return;
         }
 
-        // Preparar para Excel (SheetJS) - Mapeamento 1:1 com Supabase
-        const rows = data.map(item => ({
-            'id': item.id,
-            'vendedor_id': item.vendedor_id,
-            'vendedor_nome': item.vendedor_nome,
-            'vendedor_token': item.vendedor_token,
-            'categoria': item.categoria,
-            'produto': item.produto,
-            'cliente': item.cliente,
-            'consultor': item.consultor,
-            'rota': item.rota,
-            'perfil_cliente': item.perfil_cliente,
-            'acao': item.acao,
-            'mes_ano': item.mes_ano,
-            'data_acao': item.data_acao
-        }));
-
-        const ws = XLSX.utils.json_to_sheet(rows);
+        // Exportar Excel
+        const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Positivados");
+        XLSX.utils.book_append_sheet(wb, ws, "Todos_Dados");
 
-        // Largura das colunas
-        const wscols = [
-            { wch: 20 }, // Vendedor
-            { wch: 30 }, // Cliente
-            { wch: 15 }, // Rota
-            { wch: 40 }, // Produto
-            { wch: 15 }, // Categoria
-            { wch: 10 }, // Perfil
-            { wch: 20 }, // Data
-            { wch: 10 }  // Mes
-        ];
-        ws['!cols'] = wscols;
+        XLSX.writeFile(wb, `Todos_Dados_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
-        const fileName = `Relatorio_Equipe_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        XLSX.writeFile(wb, fileName);
+        showToast(`${data.length} registros exportados!`, 'success');
 
-        showToast(`Relatório gerado! ${data.length} registros exportados.`, 'success');
-
-    } catch (e) {
-        console.error(e);
-        showToast('Erro ao exportar: ' + e.message, 'error');
+    } catch (error) {
+        showToast(`Erro: ${error.message}`, 'error');
     } finally {
         hideLoading();
     }
+}
+
+// Adicione esta função para verificar overflow
+function checkAndFixOverflow() {
+    const headerRight = document.querySelector('#dashboard-screen .header-right');
+    if (!headerRight) return;
+
+    // Verificar se há overflow horizontal
+    if (headerRight.scrollWidth > headerRight.clientWidth) {
+        console.log('⚠️ Overflow detectado, aplicando correção...');
+
+        // Forçar quebra de linha em telas pequenas
+        if (window.innerWidth <= 768) {
+            headerRight.style.flexWrap = 'wrap';
+            headerRight.style.gap = '10px';
+        }
+
+        // Reduzir margens se necessário
+        const supervisorControls = document.getElementById('supervisor-view-controls');
+        if (supervisorControls) {
+            supervisorControls.style.marginRight = '8px';
+        }
+    }
+}
+
+// Chamar a função periodicamente
+window.addEventListener('resize', checkAndFixOverflow);
+window.addEventListener('load', checkAndFixOverflow);
+
+// Também quando o supervisor muda a visualização
+if (typeof handleSupervisorChange === 'function') {
+    const originalHandleSupervisorChange = handleSupervisorChange;
+    window.handleSupervisorChange = function () {
+        originalHandleSupervisorChange();
+        setTimeout(checkAndFixOverflow, 100);
+    };
 }
