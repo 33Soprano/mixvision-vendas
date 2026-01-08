@@ -1758,6 +1758,7 @@ select:not(.mix-select-native)::-ms-expand {
         margin: 0;
     }
 }
+
 /* Classe utilitária para prevenir overflow */
 .no-overflow {
     max-width: 100%;
@@ -1771,4 +1772,239 @@ select:not(.mix-select-native)::-ms-expand {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+}
+
+/* =====================================================
+   CORREÇÃO ESPECÍFICA PARA HEADER DO SUPERVISOR
+   ===================================================== */
+
+/* Header do dashboard - correção global */
+#dashboard-screen .app-header {
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    overflow: hidden;
+    /* Prevenir overflow no próprio header */
+    max-width: 100%;
+}
+
+/* Contêiner direito do header */
+#dashboard-screen .header-right {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    width: 100%;
+    min-width: 0;
+    /* Permite encolhimento */
+    overflow: visible;
+}
+
+/* Elementos dentro do header-right */
+#dashboard-screen .header-right>* {
+    flex-shrink: 1;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Controles do supervisor - CRÍTICO */
+#dashboard-screen #supervisor-view-controls {
+    order: 1;
+    width: auto;
+    max-width: 250px;
+    min-width: 200px;
+    margin-right: 0;
+    display: flex;
+    flex: 0 1 auto;
+    /* Flexível mas não cresce muito */
+}
+
+/* Select dos liderados - garantir largura adequada */
+#supervisor-subordinate-select {
+    width: 100%;
+    min-width: 180px;
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Botão Performance */
+#dashboard-screen .header-right>button.btn-secondary {
+    order: 2;
+    margin-right: 0;
+    flex-shrink: 1;
+    min-width: 120px;
+}
+
+/* Área do usuário */
+#dashboard-screen .user-welcome {
+    order: 3;
+    min-width: 0;
+    flex-shrink: 1;
+    max-width: 220px;
+}
+
+/* Botão Sair */
+#dashboard-screen .btn-logout {
+    order: 4;
+    flex-shrink: 1;
+    min-width: 100px;
+}
+
+/* =====================================================
+   CORREÇÕES ESPECÍFICAS PARA TELAS MÉDIAS/GRANDES
+   ===================================================== */
+@media (min-width: 769px) {
+    #dashboard-screen .app-header {
+        flex-wrap: nowrap;
+        /* Em telas maiores, não quebrar */
+    }
+
+    #dashboard-screen .header-right {
+        flex-wrap: nowrap;
+        width: auto;
+        margin-top: 0;
+    }
+
+    #dashboard-screen #supervisor-view-controls {
+        margin-right: 15px;
+        flex: 0 0 auto;
+    }
+
+    #dashboard-screen .header-right>button.btn-secondary {
+        margin-right: 10px;
+    }
+}
+
+/* =====================================================
+   CORREÇÕES PARA TELAS PEQUENAS (MÓVEL)
+   ===================================================== */
+@media (max-width: 768px) {
+    #dashboard-screen .app-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #dashboard-screen .header-right {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    #dashboard-screen #supervisor-view-controls {
+        order: 1;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    #supervisor-subordinate-select {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    #dashboard-screen .header-right>button.btn-secondary {
+        order: 2;
+        width: 100%;
+        justify-content: center;
+        margin: 5px 0;
+    }
+
+    #dashboard-screen .user-welcome {
+        order: 3;
+        width: 100%;
+        max-width: 100%;
+        justify-content: center;
+        margin: 5px 0;
+    }
+
+    #dashboard-screen .btn-logout {
+        order: 4;
+        width: 100%;
+        justify-content: center;
+        margin: 5px 0;
+    }
+}
+
+/* =====================================================
+   GARANTIR QUE O CONTEÚDO PRINCIPAL NÃO OVERFLOW
+   ===================================================== */
+.app-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    /* Prevenir overflow horizontal */
+}
+
+/* =====================================================
+   UTILITÁRIOS ADICIONAIS PARA PREVENIR OVERFLOW
+   ===================================================== */
+.no-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
+}
+
+/* Forçar quebra de texto longa */
+.break-long-words {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+/* Estilo para selects muito longos */
+select.text-truncate option {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* FIX: dropdown do supervisor não pode ser cortado pelo header */
+#dashboard-screen .app-header {
+    overflow: visible !important;
+    /* deixa o dropdown “sair” do header */
+    z-index: 2000 !important;
+    /* garante que o header fica acima dos cards */
+}
+
+#dashboard-screen .header-right,
+#dashboard-screen #supervisor-view-controls {
+    overflow: visible !important;
+}
+
+/* reforço do z-index do dropdown customizado */
+#dashboard-screen .mix-select-options {
+    z-index: 30000 !important;
+}
+
+/* FIX: Header da tela de Performance - Remove scroll e permite dropdown sobrepor */
+#performance-screen .app-header {
+    overflow: visible !important;
+    /* Remove a "mini aba de rolagem" e deixa o menu vazar */
+    z-index: 2000 !important;
+    /* Garante que o header fique acima dos cards de estatísticas */
+}
+
+#performance-screen .header-right {
+    overflow: visible !important;
+    /* Garante que o container dos botões não corte o select */
+    flex-wrap: nowrap !important;
+    /* Evita que o select quebre linha desnecessariamente */
+}
+
+/* Garante prioridade máxima para o menu dropdown dentro dessa tela */
+#performance-screen .mix-select-options {
+    z-index: 30000 !important;
 }
