@@ -7,6 +7,7 @@ let currentMixUser = null;
 let firebaseDb = null;
 let currentTableName = null;
 let currentTableDisplayName = null;
+let blockedColumns = []; // Variável global para guardar as colunas proibidas
 
 // ============================================
 // MIXSELECT - CUSTOM DROPDOWN COMPONENT
@@ -793,10 +794,75 @@ function mixLogout() {
 let selectedSubordinateForSupervisor = null;
 let supervisorSubordinatesList = [];
 
+// ============================================
+// FUNÇÕES DE SEGURANÇA E RESTRIÇÕES DE COLUNA
+// ============================================
+
+// 1. Carrega a lista negra de colunas ao logar
+async function loadColumnRestrictions(userToken) {
+    if (!window.supabase) {
+        console.error('Supabase não inicializado ao carregar restrições de coluna');
+        return;
+    }
+
+    console.log('🔍 Buscando colunas proibidas para o token:', userToken);
+
+    const { data, error } = await window.supabase
+        .from('restricoes_colunas')
+        .select('coluna_proibida')
+        .eq('token_usuario', userToken);
+
+    if (error) {
+        console.error('Erro ao carregar colunas bloqueadas:', error);
+        return;
+    }
+
+    if (data) {
+        blockedColumns = data.map(item => item.coluna_proibida);
+        console.log('✅ Colunas bloqueadas para este usuário:', blockedColumns);
+    } else {
+        blockedColumns = [];
+    }
+}
+
+// 2. Remove as colunas proibidas dos dados
+function removeRestrictedColumns(data) {
+    if (!data || !data.length || blockedColumns.length === 0) return data;
+
+    console.log(`🛡️ Removendo ${blockedColumns.length} coluna(s) restrita(s) de ${data.length} registros...`);
+
+    return data.map(row => {
+        const cleanRow = { ...row };
+
+        blockedColumns.forEach(colName => {
+            // Remove se o nome for exato
+            if (cleanRow.hasOwnProperty(colName)) {
+                delete cleanRow[colName];
+            }
+
+            // Opcional: Remover se CONTIVER o nome (ex: "Fini" remove "Vendas Fini")
+            // Como solicitado no exemplo de lógica, vamos implementar o "contém" para maior segurança
+            Object.keys(cleanRow).forEach(key => {
+                if (key.toLowerCase().includes(colName.toLowerCase())) {
+                    delete cleanRow[key];
+                }
+            });
+        });
+
+        return cleanRow;
+    });
+}
+
 async function loadDashboardScreen() {
     const userName = currentMixUser?.name || 'Vendedor';
     const role = currentMixUser?.role || 'user';
     const userId = currentMixUser?.id;
+    const userToken = currentMixUser?.token || localStorage.getItem('authToken');
+
+    // Carregar restrições de colunas (se não for admin)
+    if (role !== 'admin' && userToken) {
+        await loadColumnRestrictions(userToken);
+    }
 
     const avatar = document.getElementById('dashboard-user-avatar');
     const nameEl = document.getElementById('dashboard-user-name');
@@ -1203,18 +1269,20 @@ async function loadDataFromTable(tableName, displayName) {
         console.log(`✅ ${data?.length || 0} registros carregados da tabela ${tableName}`);
         console.log(`🏆 Projeto: ${SUPABASE_PROJECT_ID}`);
 
-        if (!data || data.length === 0) {
+        // APLICA O FILTRO DE COLUNAS ANTES DE CONVERTER E RENDERIZAR
+        const safeData = removeRestrictedColumns(data);
+
+        if (!safeData || safeData.length === 0) {
             showDataError(`
-                <strong>Tabela "${displayName}" está vazia!</strong><br><br>
-                A tabela <strong>${tableName}</strong> no seu projeto Supabase não contém dados.<br>
-                <strong>Projeto:</strong> ${SUPABASE_PROJECT_ID}<br><br>
-                <strong>Solução:</strong> Adicione dados à tabela no seu Supabase.
+                <strong>Nenhum dado disponível após aplicação dos filtros de segurança!</strong><br><br>
+                A tabela <strong>${tableName}</strong> contém dados, mas todos foram filtrados.<br>
+                <strong>Projeto:</strong> ${SUPABASE_PROJECT_ID}
             `);
             return;
         }
 
         // Converter dados do Supabase para formato de "planilha"
-        const rows = convertSupabaseDataToRows(data);
+        const rows = convertSupabaseDataToRows(safeData);
 
         // Processar os dados
         processData(rows);
