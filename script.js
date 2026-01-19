@@ -8,6 +8,9 @@ let firebaseDb = null;
 let currentTableName = null;
 let currentTableDisplayName = null;
 let blockedColumns = []; // Variável global para guardar as colunas proibidas
+let globalSelectedRoute = null; // Persistência de Rota
+let globalSelectedClient = null; // Persistência de Cliente
+
 
 // ============================================
 // MIXSELECT - CUSTOM DROPDOWN COMPONENT
@@ -1856,10 +1859,18 @@ function processData(data) {
             'rc', /rc$/i
         ];
 
+        // "Cliente" principal (agora focado em ser o ID/Código se houver ambiguidade)
         const clientPatterns = [
-            'name', 'nome', 'cliente', 'pdv', 'ponto de venda',
-            'fantasia', 'loja', 'filial', 'nome cliente', 'estabelecimento',
-            /cliente/i, /pdv/i, /^name$/i
+            'cliente', 'pdv', 'cod', 'código', 'codigo', 'chave', 'id',
+            'ponto de venda', 'filial', 'estabelecimento',
+            /cliente/i, /pdv/i, /cod/i
+        ];
+
+        // Novo: Coluna específica de Nome
+        const clientNamePatterns = [
+            'nome', 'name', 'nome do cliente', 'nome cliente',
+            'fantasia', 'nome fantasia', 'razão social', 'razao social',
+            /^nome$/i, /^name$/i
         ];
 
         const productPatterns = [
@@ -1874,6 +1885,7 @@ function processData(data) {
         const colMap = {
             consultant: findColByPatterns(consultantPatterns, true),
             client: findColByPatterns(clientPatterns),
+            clientName: findColByPatterns(clientNamePatterns), // Nova coluna
             product: findColByPatterns(productPatterns),
             route: findColByPatterns(routePatterns),
             profile: findColByPatterns(profilePatterns),
@@ -1976,6 +1988,7 @@ function processData(data) {
 
             const consultantCell = colMap.consultant !== -1 ? row[colMap.consultant] : undefined;
             const clientCell = colMap.client !== -1 ? row[colMap.client] : undefined;
+            const clientNameCell = colMap.clientName !== -1 ? row[colMap.clientName] : undefined; // Captura Nome
             const routeCell = colMap.route !== -1 ? row[colMap.route] : undefined;
             const profileCell = colMap.profile !== -1 ? row[colMap.profile] : undefined;
 
@@ -2001,6 +2014,7 @@ function processData(data) {
             userRowsFound++;
 
             const client = clientCell ? String(clientCell).trim() : `Cliente ${r}`;
+            const clientName = clientNameCell ? String(clientNameCell).trim() : ''; // Nome ou vazio
             const route = routeCell ? normalizeRoute(routeCell) : 'Rota N/D';
             const profile = profileCell ? detectProfile(profileCell) : 'N/D';
 
@@ -2012,8 +2026,13 @@ function processData(data) {
             if (!hierarchy[consultant][route][client]) {
                 hierarchy[consultant][route][client] = {
                     products: new Set(),
-                    profile: profile
+                    profile: profile,
+                    clientName: clientName // Salva o nome
                 };
+            }
+            // Se encontrou um nome melhor depois, atualiza
+            if (clientName && !hierarchy[consultant][route][client].clientName) {
+                hierarchy[consultant][route][client].clientName = clientName;
             }
 
             if (isWide) {
@@ -2230,13 +2249,32 @@ function handleConsultantChange() {
     `;
 
     const routeSelect = document.getElementById('route-select');
+
+    // TENTATIVA DE AUTO-SELEÇÃO (PERSISTÊNCIA)
+    if (globalSelectedRoute) {
+        // Verifica se a rota salva existe na nova lista
+        const optionExists = Array.from(routeSelect.options).some(opt => opt.value === globalSelectedRoute);
+        if (optionExists) {
+            console.log(`🔄 Auto-selecionando rota salva: ${globalSelectedRoute}`);
+            routeSelect.value = globalSelectedRoute;
+        }
+    }
+
     routeSelect.addEventListener('change', () => {
         handleRouteChange(selected, routeSelect.value);
     });
+
+    // Se já tiver valor selecionado (auto-seleção), dispara o fluxo
+    if (routeSelect.value) {
+        handleRouteChange(selected, routeSelect.value);
+    }
 }
 
 function handleRouteChange(consultant, route) {
     if (!route) return;
+
+    // SALVAR SELEÇÃO NA GLOBAL
+    globalSelectedRoute = route;
 
     const clients = Object.keys(hierarchy[consultant][route] || {}).sort();
 
@@ -2257,12 +2295,31 @@ function handleRouteChange(consultant, route) {
     `;
 
     const clientSelect = document.getElementById('client-select');
+
+    // TENTATIVA DE AUTO-SELEÇÃO (PERSISTÊNCIA)
+    if (globalSelectedClient) {
+        const optionExists = Array.from(clientSelect.options).some(opt => opt.value === globalSelectedClient);
+        if (optionExists) {
+            console.log(`🔄 Auto-selecionando cliente salvo: ${globalSelectedClient}`);
+            clientSelect.value = globalSelectedClient;
+        }
+    }
+
     clientSelect.addEventListener('change', () => {
         handleClientChange(consultant, route, clientSelect.value);
     });
+
+    // Se já tiver valor selecionado (auto-seleção), dispara o fluxo
+    if (clientSelect.value) {
+        handleClientChange(consultant, route, clientSelect.value);
+    }
 }
 
 function handleClientChange(consultant, route, client) {
+    if (client) {
+        globalSelectedClient = client; // SALVAR SELEÇÃO
+    }
+
     if (!client) {
         if (opportunitiesList) opportunitiesList.innerHTML = '';
         const emptyState = document.getElementById('empty-state');
@@ -2277,12 +2334,30 @@ function handleClientChange(consultant, route, client) {
     // Set global variables for actions
     currentClientName = client;
 
+    // ATUALIZAÇÃO UI: Nome do Cliente
+    const clientRealName = clientData.clientName || 'Nome não identificado';
+    const profileBadge = document.getElementById('profile-badge');
+
+    // Cria ou atualiza elemento de nome
+    let nameBadge = document.getElementById('client-name-display');
+    if (!nameBadge) {
+        nameBadge = document.createElement('div');
+        nameBadge.id = 'client-name-display';
+        nameBadge.className = 'badge badge-primary';
+        nameBadge.style.cssText = 'background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2); margin-right: 10px; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600;';
+        // Insere antes do profile badge
+        if (profileBadge && profileBadge.parentNode) {
+            profileBadge.parentNode.insertBefore(nameBadge, profileBadge);
+        }
+    }
+
+    nameBadge.innerHTML = `<i class="fas fa-store mr-1"></i> ${clientRealName}`;
+
     // Carregar ações já salvas
     loadActions(currentTableName).then(() => {
         renderList();
     });
 
-    const profileBadge = document.getElementById('profile-badge');
     if (profileBadge) {
         profileBadge.textContent = `Perfil: ${currentProfile}`;
     }
