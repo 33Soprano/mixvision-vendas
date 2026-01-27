@@ -162,16 +162,12 @@ const CATEGORY_CONFIG = {
 
 // Tabelas sugeridas (para fallback)
 const SUGGESTED_TABLES = [
+
     { name: 'Saudaveis V1', displayName: 'Saudaveis V1', category: 'saudaveis' },
     { name: 'LIMPEZA E BAZAR', displayName: 'Limpeza e Bazar', category: 'limpeza' },
     { name: 'M DIAS', displayName: 'M Dias', category: 'mdias' },
     { name: 'MERCEARIA', displayName: 'Mercearia', category: 'mercearia' },
-
-    // Antigas (mantidas por segurança)
-    { name: 'mercearia', displayName: 'Mercearia', category: 'mercearia' },
-    { name: 'limpeza', displayName: 'Limpeza', category: 'limpeza' },
-    { name: 'mdias', displayName: 'M Dias', category: 'mdias' },
-    { name: 'saudaveis', displayName: 'Saudáveis', category: 'saudaveis' }
+    { name: 'vendas', displayName: 'Vendas', category: 'geral' }
 ];
 
 // ============================================
@@ -2018,35 +2014,44 @@ function processData(data) {
             const route = routeCell ? normalizeRoute(routeCell) : 'Rota N/D';
             const profile = profileCell ? detectProfile(profileCell) : 'N/D';
 
-            totalConsultants.add(consultant);
+            // Agrupar Consultores: Se não for supervisor vendo tudo, agrupa no nome canônico
+            // Isso evita que "Tabata" e "Tabata K." apareçam como 2 pessoas diferentes
+            let hierarchyKey = consultant;
+            const isSupervisorViewingAll = currentMixUser?.role === 'supervisor' && !selectedSubordinateForSupervisor;
+
+            if (!isSupervisorViewingAll) {
+                hierarchyKey = currentConsultantName; // Usa o nome alvo como chave única
+            }
+
+            totalConsultants.add(hierarchyKey);
             totalClients.add(client);
 
-            if (!hierarchy[consultant]) hierarchy[consultant] = {};
-            if (!hierarchy[consultant][route]) hierarchy[consultant][route] = {};
-            if (!hierarchy[consultant][route][client]) {
-                hierarchy[consultant][route][client] = {
+            if (!hierarchy[hierarchyKey]) hierarchy[hierarchyKey] = {};
+            if (!hierarchy[hierarchyKey][route]) hierarchy[hierarchyKey][route] = {};
+            if (!hierarchy[hierarchyKey][route][client]) {
+                hierarchy[hierarchyKey][route][client] = {
                     products: new Set(),
                     profile: profile,
                     clientName: clientName // Salva o nome
                 };
             }
             // Se encontrou um nome melhor depois, atualiza
-            if (clientName && !hierarchy[consultant][route][client].clientName) {
-                hierarchy[consultant][route][client].clientName = clientName;
+            if (clientName && !hierarchy[hierarchyKey][route][client].clientName) {
+                hierarchy[hierarchyKey][route][client].clientName = clientName;
             }
 
             if (isWide) {
                 for (const pc of productColumns) {
                     const val = row[pc.index];
                     if (isNonEmptyText(val)) {
-                        hierarchy[consultant][route][client].products.add(pc.name);
+                        hierarchy[hierarchyKey][route][client].products.add(pc.name);
                         totalOpportunities++;
                         totalProducts.add(pc.name);
                         continue;
                     }
                     const n = toNumber(val);
                     if (!Number.isNaN(n) && n >= 1) {
-                        hierarchy[consultant][route][client].products.add(pc.name);
+                        hierarchy[hierarchyKey][route][client].products.add(pc.name);
                         totalOpportunities++;
                         totalProducts.add(pc.name);
                     }
@@ -2056,7 +2061,7 @@ function processData(data) {
                 if (prodCell) {
                     const prodName = String(prodCell).trim();
                     if (prodName) {
-                        hierarchy[consultant][route][client].products.add(prodName);
+                        hierarchy[hierarchyKey][route][client].products.add(prodName);
                         allProducts.add(prodName);
                         totalOpportunities++;
                         totalProducts.add(prodName);
@@ -2192,6 +2197,19 @@ function populateConsultants() {
             option.textContent = consultant; // textContent escapa auto
             consultantSelect.appendChild(option);
         });
+
+        // LOCK UI para Consultores (não-supervisores)
+        if (currentMixUser?.role !== 'supervisor') {
+            consultantSelect.disabled = true;
+            consultantSelect.style.backgroundColor = '#f8fafc';
+            consultantSelect.style.cursor = 'not-allowed';
+            consultantSelect.style.opacity = '0.8';
+        } else {
+            consultantSelect.disabled = false;
+            consultantSelect.style.backgroundColor = '';
+            consultantSelect.style.cursor = '';
+            consultantSelect.style.opacity = '';
+        }
 
         console.log(`✅ Dropdown consultor preenchido com ${consultants.length} opções.`);
 
